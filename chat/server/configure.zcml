@@ -1,0 +1,22 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    xmlns:five="http://namespaces.zope.org/five">
+
+    <five:traversable class="OFS.Application.Application"/>
+
+    <five:traversable class=".service.ChatService"/>
+
+    <five:registerClass
+        class=".service.ChatService"
+        meta_type="Chat Service"
+        addview="addChatService.html"
+        icon="service.png"
+        permission="zope2.ViewManagementScreens"
+        />
+
+    <five:defaultViewable class=".service.ChatService"/>
+
+    <include package=".browser" />
+
+</configure>
