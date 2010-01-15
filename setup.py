@@ -18,7 +18,7 @@ setup(name='babble.server',
       url='http://svn.plone.org/svn/plone/plone.example',
       license='GPL',
       packages=find_packages(exclude=['ez_setup']),
-      namespace_packages=['chat'],
+      namespace_packages=['babble'],
       include_package_data=True,
       zip_safe=False,
       install_requires=[
