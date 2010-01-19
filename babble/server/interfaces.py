@@ -74,8 +74,21 @@ class IUser(Interface):
     def addMessage(recipient, message):
         """ add message for recipient """
 
-    def getMessagesFromSender(sender):
-        """ get messages from sender """
+    def getUnreadMessages(self, sender=None, read=True):
+        """ Return uncleared messages in list of dicts with senders as keys. 
+            If a sender is specified, then return only the messages from that
+            sender. 
+            If read=True, then mark them as read. Messages are usually marked
+            as read as soon as they are retreived.
+        """
+
+    def getUnclearedMessages(self, sender=None, clear=True):
+        """ Return uncleared messages in list of dicts with senders as keys. 
+            If a sender is specified, then return only the messages from that
+            sender. 
+            If clear=True, then mark them as read. Messages are usually marked
+            as cleared when the chat session is over.
+        """
 
     def requestContact(contact):
         """ make request to add user as contact """

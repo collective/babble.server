@@ -104,21 +104,43 @@ class ChatService(BTreeFolder2):
         user = self._getUser(username)
         return user.getStatus()
 
-    def sendMessage(self, username, recipient, message, register=False):
-        """ send a message to a user """
-        user = self._getUser(recipient, register)
-        user.addMessage(username, message)
+    def sendMessage(self, sender, recipient, message, register=False):
+        """ Send a message to a user 
 
-    def getAllMessages(self, user, register=False):
-        """ Returns all the messages for user"""
-        user = self._getUser(user, register)
-        messages = user.getAllMessages()
+            A message is added to the messagebox of both the sender and
+            recipient.
+        """
+        # Add for the sender but make sure it's set to read.
+        user = self._getUser(sender, register)
+        user.addMessage(recipient, message, sender, read=True)
+
+        user = self._getUser(recipient, register)
+        user.addMessage(sender, message, sender)
+
+
+    def getUnreadMessages(
+                        self, 
+                        username, 
+                        sender=None, 
+                        register=False,
+                        read=True,
+                        ):
+        """ Returns all the unread messages for user """
+        user = self._getUser(username, register)
+        messages = user.getUnreadMessages(sender, read)
         return messages
 
-    def getMessagesForUser(self, username, sender, read=True):
-        """ get all the messages for a user from a given sender"""
-        user = self._getUser(username)
-        messages = user.getMessagesFromSender(sender, read)
+    def getUnclearedMessages(
+                        self, 
+                        username, 
+                        sender=None, 
+                        register=False,
+                        read=True,
+                        clear=False,
+                        ):
+        """ Returns all the uncleared messages for user """
+        user = self._getUser(username, register)
+        messages = user.getUnclearedMessages(sender, read, clear)
         return messages
 
     def requestContact(self, username, contact):

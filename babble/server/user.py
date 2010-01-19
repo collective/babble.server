@@ -38,39 +38,65 @@ class User(BTreeFolder2):
         """ get user's status """
         return self._status
 
-    def addMessage(self, recipient, message):
-        mbox = self._getMessageBox(recipient)
-        mbox.addMessage(message)
-
-    def getAllMessages(self):
-        """ Get all new messages, mark them as read.
+    def addMessage(self, contact, message, author, read=False):
+        """ Add a message to this user's contact's messagebox
+            
+            The message author could be either the user or the
+            contact, and is therefore passed as a separate var.
         """
+        mbox = self._getMessageBox(contact)
+        mbox.addMessage(message, author, read)
+
+    def getUnreadMessages(self, sender=None, read=True):
+        """ Return uncleared messages in list of dicts with senders as keys. 
+            If read=True, then mark them as read.
+            If a sender is specified, then return only the messages from that
+            sender. 
+        """
+        if sender:
+            mboxes = [self._getMessageBox(sender)]
+        else:
+            mboxes = self.objectValues()
+
         messages = []
-        for mbox in self.objectValues():
+        for mbox in mboxes:
             mbox_messages = []
             for m in mbox.objectValues():
                 if m.unread():
-                    mbox_messages.append((m.time.Date(), m.time.TimeMinutes(), m.text))
-                    m.markAsRead()
+                    mbox_messages.append((m.author, m.time.Date(), m.time.TimeMinutes(), m.text))
+                    if read is True:
+                        m.markAsRead()
 
             if mbox_messages:
                 messages.append({'user':mbox.id, 'messages':tuple(mbox_messages)})
         return messages
 
-    def getMessagesFromSender(self, sender, read=True):
-        mbox = self._getMessageBox(sender)
+    def getUnclearedMessages(self, sender=None, read=True, clear=False):
+        """ Return uncleared messages in list of dicts with senders as keys. 
+            If a sender is specified, then return only the messages from that
+            sender. 
+            If clear=True, then mark them as read. Messages are usually marked
+            as cleared when the chat session is over.
+        """
+        if sender:
+            mboxes = [self._getMessageBox(sender)]
+        else:
+            mboxes = self.objectValues()
+            
         messages = []
-        m_ids = mbox.objectIds()
-        if not m_ids:
-            return ()
+        for mbox in mboxes:
+            mbox_messages = []
+            for m in mbox.objectValues():
+                if m.uncleared():
+                    mbox_messages.append((m.author, m.time.Date(), m.time.TimeMinutes(), m.text))
+                    if read is True:
+                        m.markAsRead()
+                    if clear is True:
+                        m.markAsCleared()
 
-        for m in mbox.objectValues():
-            if m.unread():
-                messages.append((m.time.ISO8601(), m.text))
-                if read is True:
-                    m.markAsRead()
-
-        return tuple(messages)
+            if mbox_messages:
+                messages.append({'user':mbox.id, 'messages':tuple(mbox_messages)})
+        return messages
 
     def getNumMessagesFromSender(self, sender):
         mbox = self._getMessageBox(sender)
@@ -145,10 +171,10 @@ class User(BTreeFolder2):
 
         return contact_status_list
 
-    def _getMessageBox(self, recipient):
-        if recipient not in self.objectIds():
-            self._setObject(recipient, MessageBox(recipient))
-        return self._getOb(recipient)
+    def _getMessageBox(self, owner):
+        if owner not in self.objectIds():
+            self._setObject(owner, MessageBox(owner))
+        return self._getOb(owner)
 
     def _getUser(self, username):
         return self.aq_parent._getOb(username)

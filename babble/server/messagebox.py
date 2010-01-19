@@ -7,7 +7,7 @@ class MessageBox(BTreeFolder2):
     """ A message box """
     implements(IMessageBox)
 
-    def addMessage(self, message):
+    def addMessage(self, message, author, read=False):
         """ add a message """
-        message = Message(message)
+        message = Message(message, author, read)
         self._setObject(message.id, message)
