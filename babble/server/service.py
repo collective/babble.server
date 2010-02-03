@@ -20,13 +20,23 @@ class ChatService(BTreeFolder2):
     security = ClassSecurityInfo()
     security.declareObjectProtected('Use Chat Service')
 
+    def _getUser(self, username, auto_register=False):
+        if not self.hasObject(username):
+            if auto_register:
+                self.register(username, username[::-2]*2)
+            else:
+                raise NotFound("%s is not registered." % username)
+
+        return self._getOb(username)
+
     def register(self, username, password):
         """ register a user with the babble.server """
         self.acl_users.userFolderAddUser(
                                     username, 
                                     password, 
                                     roles=(),
-                                    domains=())
+                                    domains=()
+                                    )
         self._setObject(username, User(username))
 
     def isRegistered(self, username):
@@ -117,7 +127,6 @@ class ChatService(BTreeFolder2):
         user = self._getUser(recipient, register)
         user.addMessage(sender, message, sender)
 
-
     def getUnreadMessages(
                         self, 
                         username, 
@@ -196,15 +205,6 @@ class ChatService(BTreeFolder2):
         """ return a more detailed list of all contacts """
         user = self._getUser(username)
         return user.getContactStatusList()
-
-    def _getUser(self, username, register=False):
-        if not self.hasObject(username):
-            if register:
-                self.register(username, username[::-2]*2)
-            else:
-                raise NotFound("%s is not registered." % username)
-
-        return self._getOb(username)
 
 InitializeClass(ChatService)
 

@@ -75,7 +75,7 @@ class User(BTreeFolder2):
         """ Return uncleared messages in list of dicts with senders as keys. 
             If a sender is specified, then return only the messages from that
             sender. 
-            If clear=True, then mark them as read. Messages are usually marked
+            If clear=True, then mark them as cleared. Messages are usually marked
             as cleared when the chat session is over.
         """
         if sender:
