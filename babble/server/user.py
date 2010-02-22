@@ -12,23 +12,10 @@ class User(BTreeFolder2):
 
     implements(IUser)
 
-    _online = False
     _contacts = ()
     _contact_requests = ()
     _pending_contacts = ()
     _status = 'Away'
-
-    def signIn(self):
-        """ sign in """
-        self._online = True
-
-    def signOut(self):
-        """ sign out """
-        self._online = False
-
-    def isOnline(self):
-        """ is user online """
-        return self._online
 
     def setStatus(self, status):
         """ set user's status """
