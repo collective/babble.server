@@ -2,123 +2,177 @@ from zope.interface import Interface
 from zope import schema
 
 class IChatService(Interface):
-    """ A basic babble.server """
+    """ """
 
-    def register(username):
-        """ register a user with the babble.server """
+    def _getUserAccessDict(self):
+        """ The user access dictionary is stored inside a Temporary Folder.
+            A Temporary Folder is kept in RAM and it loses all its contents 
+            whenever the Zope server is restarted.
 
-    def setUserProperty(username, name, value):
-        """ set a property for a given user """
+            The 'user access dictionary' contains usernames as keys and the
+            last date and time that these users have been confirmed to be 
+            online as the values.
 
-    def getUserProperty(username, name):
-        """ get the property for a given user """
-
-    def findUser(propname, value):
-        """ Find a user on a value for a given property """
-
-    def signIn(username):
-        """ sign into message service """
-
-    def signOut(username):
-        """ sign out of message service """
-
-    def isOnline(username):
-        """ is user online """
-
-    def sendMessage(username, recipient, message):
-        """ send a message to a user """
-
-    def getMessagesForUser(username, sender):
-        """ get all the messages for a user from a given sender """
-
-    def requestContact(username, contact):
-        """ a request from user identified by 'username' to make contact
-            with a contact identified by 'contact'
+            These date values can be used to determine (guess) whether the 
+            user is still currently online.
         """
 
-    def approveContactRequest(username, contact):
-        """ user identified by 'username' approves contact identified by
-            'contact'
+    def _getUsersFolder(self):
+        """ The 'Users' folder is a BTreeFolder that contains IUser objects.
+            See babble.server.interfaces.py:IUser
         """
 
-    def declineContactRequest(username, contact):
-        """ decline request to add user as contact """
-
-    def removeContact(username, contact):
-        """ remove existing contact from a user's contact list """
-
-    def getPendingContacts(username):
-        """ return a list of of all pending contacts """
-
-    def getContactRequests(username):
-        """ return a list of of all requests to be add as contact for a
-            given user
+    def _getUser(self, username, auto_register=True):
+        """ Retrieve the IUser obj from the 'Users' folder.
         """
 
-    def getContacts(username):
-        """ return a list of of approved contacts """
+
+    def _confirmAsOnline(self, username):
+        """ Confirm that the user is currently online by updating the 'user
+            access dict'
+        """
+
+    def register(self, username, password):
+        """ Register a user with the babble.server's acl_users and create a
+            'User' object in the 'Users' folder
+        """
+
+    def isRegistered(self, username):
+        """ Check whether the user is registered via babble.server's acl_users """
+
+    def setUserPassword(self, username, password):
+        """ Set the user's password """
+
+    def authenticate(self, username, password):
+        """ Authenticate the user with username and password """
+
+    def isOnline(self, username):
+        """ Determine whether the user is (probably) currently online
+
+            Get the last time that the user updated the 'user access dict' and
+            see whether this time is less than 1 minute in the past.
+
+            If yes, then we assume the user is online, otherwise not.
+        """
+
+    def getOnlineUsers(self):
+        """ Determine the (probable) online users from the 'user access dict' 
+            and return them as a list
+        """
+
+    def setStatus(self, username, status):
+        """ Set the user's status.
+
+            The user might have a status such as 'available', 'chatty', 
+            'busy' etc. but this only applies if the user is actually 
+            online, as determined from the 'user access dictionary'.
+
+            The 'status' attribute is optional, it depends on the chat client 
+            whether the user's 'status' property is at all relevant 
+            and being used.
+        """
+
+    def getStatus(self, username):
+        """ Get the user's status.
+
+            The user might have a status such as 'available', 'chatty', 
+            'busy' etc. but this only applies if the user is actually 
+            online, as determined from the 'user access dictionary'.
+
+            The 'status' attribute is optional, it depends on the chat client 
+            whether the user's 'status' property is at all relevant 
+            and being used.
+        """
+
+    def sendMessage(self, sender, recipient, message, register=False):
+        """ Sends a message to recipient
+
+            A message is added to the messagebox of both the sender and
+            recipient.
+        """
+
+    def getUnreadMessages(
+                        self, 
+                        username, 
+                        sender=None, 
+                        register=True,
+                        read=True,
+                        confirm_online=True,
+                        ):
+        """ Returns the unread messages for a user. 
+            
+            If sender is none, return all unread messages, otherwise return
+            only the unread messages sent by that specific sender.
+        """
+
+    def getUnclearedMessages(
+                        self, 
+                        username, 
+                        sender=None, 
+                        register=True,
+                        read=True,
+                        clear=False,
+                        confirm_online=True,
+                        ):
+        """ Returns the uncleared messages for user. 
+            
+            If sender is none, return all uncleared messages, otherwise return
+            only the uncleared messages sent by that specific sender.
+        """
 
 
 class IUser(Interface):
     """ A user using the babble.server """
 
-    def signIn(self):
-        """ sign in """
-
-    def signOut(self):
-        """ sign out """
-
-    def isOnline(self):
-        """ is user online """
-
-    def addMessage(recipient, message):
-        """ add message for recipient """
-
-    def getUnreadMessages(self, sender=None, read=True):
-        """ Return uncleared messages in list of dicts with senders as keys. 
-            If a sender is specified, then return only the messages from that
-            sender. 
-            If read=True, then mark them as read. Messages are usually marked
-            as read as soon as they are retreived.
+    def _getMessageBox(self, owner):
+        """ The MessageBox is a container inside the 'User' object that stores
+            the messages sent and received by that user.
         """
 
-    def getUnclearedMessages(self, sender=None, clear=True):
+    def setStatus(self, status):
+        """ Sets the user's status """
+
+    def getStatus(self):
+        """ Returns the user's status """
+
+    def addMessage(self, contact, message, author, read=False):
+        """ Add a message to this user's contact's messagebox
+            
+            The message author could be either the user or the
+            contact (conversation partnet), and is therefore passed 
+            as a separate var.
+        """
+
+    def getUnreadMessages(self, sender=None, read=True):
+        """ Return unread messages as a list of dicts with the senders as keys. 
+            If read=True, then mark them as read.
+            If a sender is specified, then return only those messages sent by 
+            him/her. 
+        """
+
+    def getUnclearedMessages(self, sender=None, read=True, clear=False):
         """ Return uncleared messages in list of dicts with senders as keys. 
-            If a sender is specified, then return only the messages from that
-            sender. 
-            If clear=True, then mark them as read. Messages are usually marked
+            If a sender is specified, then return only the messages sent by
+            him/her.
+
+            If clear=True, then mark them as cleared. Messages are usually marked
             as cleared when the chat session is over.
         """
 
-    def requestContact(contact):
-        """ make request to add user as contact """
-
-    def approveContactRequest(contact):
-        """ add user as contact """
-
-    def declineContactRequest(contact):
-        """ decline request to add user as contact """
-
-    def removeContact(contact):
-        """ remove existing contact """
-
-    def getPendingContacts():
-        """ return a list of of all pending contacts """
-
-    def getContactRequests():
-        """ return a list of of all requests to be add as contact for a
-            given user
-        """
 
 class IMessageBox(Interface):
     """ A container for messages """
 
-    def addMessage(self, message):
-        """ add a message """
+    def addMessage(self, message, author, read=False):
+        """ Add a message to the MessageBox """
 
 
 class IMessage(Interface):
     """ A message in a message box """
+
+    author = schema.Text(
+        title=u"Message Author",
+        required=True,)
 
     text = schema.Text(
         title=u"Message Body",
@@ -127,3 +181,16 @@ class IMessage(Interface):
     time = schema.Datetime(
         title=u"Timestamp for the message",
         required=True,)
+
+
+    def unread(self):
+        """ Has this message been read? """
+
+    def markAsRead(self):
+        """ Mark this message as being read """
+
+    def uncleared(self):
+        """ Has this message been cleard? """
+
+    def markAsCleared(self):
+        """ Mark this message as cleared """
