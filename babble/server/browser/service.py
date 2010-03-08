@@ -1,9 +1,5 @@
-import transaction
-from persistent.dict import PersistentDict
-
+from Acquisition import aq_base
 from Products.BTreeFolder2.BTreeFolder2 import manage_addBTreeFolder
-from Products.TemporaryFolder.TemporaryFolder import constructTemporaryFolder 
-
 from babble.server.service import ChatService
 from babble.server import UseChatService
 
@@ -16,12 +12,11 @@ class ChatServiceAddView:
             self.request.set('add_input_name', add_input_name)
             obj = ChatService(add_input_name)
             obj.title = title
-            self.context.add(obj)
+            self.context.context._setOb(add_input_name, obj)
             obj = self.context.aq_acquire(obj.id)
 
-            obj.manage_addUserFolder()
-            manage_addBTreeFolder(obj, 'users', 'Users')
-            constructTemporaryFolder(obj, 'temp_folder')
+            aq_base(obj).manage_addUserFolder()
+            manage_addBTreeFolder(aq_base(obj), 'users', 'Users')
 
             obj.manage_permission(UseChatService,
                 roles=('Authenticated',), acquire=1)
