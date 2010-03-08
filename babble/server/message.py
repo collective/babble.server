@@ -20,13 +20,17 @@ class Message(SimpleItem):
         self.id = 'message.%s' % self.time.millis()
         
     def unread(self):
+        """ Has this message been read? """
         return not self._read
 
     def markAsRead(self):
+        """ Mark this message as being read """
         self._read = True
 
     def uncleared(self):
+        """ Has this message been cleard? """
         return not self._cleared
 
     def markAsCleared(self):
+        """ Mark this message as cleared """
         self._cleared= True
