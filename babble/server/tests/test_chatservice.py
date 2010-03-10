@@ -20,15 +20,7 @@ class TestChatService(ztc.ZopeTestCase):
 
     def afterSetUp(self):
         """ Adds a babble.server to the default fixture """
-        # Create the admin user.
-        self.setRoles(('Manager',))
-
-        adding = self.app.restrictedTraverse('+')
-        view = component.getMultiAdapter(
-                                    (adding, self.app.REQUEST),
-                                    name=u'addChatService.html',
-                                    )
-
+        view = self.app.unrestrictedTraverse('+/addChatService.html')
         self.assertEqual(type(view()), unicode) # Render the add form
         view(add_input_name='chat_service', title='Chat Service', submit_add=1)
 

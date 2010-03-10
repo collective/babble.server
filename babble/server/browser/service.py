@@ -12,7 +12,7 @@ class ChatServiceAddView:
             self.request.set('add_input_name', add_input_name)
             obj = ChatService(add_input_name)
             obj.title = title
-            self.context.context._setOb(add_input_name, obj)
+            self.context.add(obj)
             obj = self.context.aq_acquire(obj.id)
 
             aq_base(obj).manage_addUserFolder()
