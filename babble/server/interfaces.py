@@ -91,14 +91,7 @@ class IChatService(Interface):
             recipient.
         """
 
-    def getUnreadMessages(
-                        self, 
-                        username, 
-                        sender=None, 
-                        register=True,
-                        read=True,
-                        confirm_online=True,
-                        ):
+    def getUnreadMessages(self, username, password, read=True):
         """ Returns the unread messages for a user. 
             
             If sender is none, return all unread messages, otherwise return
@@ -108,16 +101,19 @@ class IChatService(Interface):
     def getUnclearedMessages(
                         self, 
                         username, 
+                        password,
                         sender=None, 
-                        register=True,
                         read=True,
                         clear=False,
-                        confirm_online=True,
                         ):
-        """ Returns the uncleared messages for user. 
-            
-            If sender is none, return all uncleared messages, otherwise return
-            only the uncleared messages sent by that specific sender.
+        """ Return uncleared messages in list of dicts with senders as keys. 
+            If a sender is specified, then return only the messages sent by
+            him/her.
+
+            If read=True, then mark the messages as being read.
+
+            If clear=True, then mark them as cleared. Messages are usually marked
+            as cleared when the chat session is over.
         """
 
 
@@ -143,17 +139,17 @@ class IUser(Interface):
             as a separate var.
         """
 
-    def getUnreadMessages(self, sender=None, read=True):
-        """ Return unread messages as a list of dicts with the senders as keys. 
+    def getUnreadMessages(self, read=True):
+        """ Return unread messages in a dictionary with the senders as keys.
             If read=True, then mark them as read.
-            If a sender is specified, then return only those messages sent by 
-            him/her. 
         """
 
     def getUnclearedMessages(self, sender=None, read=True, clear=False):
         """ Return uncleared messages in list of dicts with senders as keys. 
             If a sender is specified, then return only the messages sent by
             him/her.
+
+            If read=True, then mark the messages as being read.
 
             If clear=True, then mark them as cleared. Messages are usually marked
             as cleared when the chat session is over.

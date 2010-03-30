@@ -42,18 +42,12 @@ class User(BTreeFolder2):
         mbox.addMessage(message, author, read)
 
 
-    def getUnreadMessages(self, sender=None, read=True):
-        """ Return unread messages as a list of dicts with the senders as keys. 
+    def getUnreadMessages(self, read=True):
+        """ Return unread messages in a dictionary with the senders as keys.
             If read=True, then mark them as read.
-            If a sender is specified, then return only those messages sent by 
-            him/her. 
         """
-        if sender:
-            mboxes = [self._getMessageBox(sender)]
-        else:
-            mboxes = self.objectValues()
-
-        messages = []
+        mboxes = self.objectValues()
+        messages = {}
         for mbox in mboxes:
             mbox_messages = []
             for m in mbox.objectValues():
@@ -63,7 +57,7 @@ class User(BTreeFolder2):
                         m.markAsRead()
 
             if mbox_messages:
-                messages.append({'user':mbox.id, 'messages':tuple(mbox_messages)})
+                messages[mbox.id] = tuple(mbox_messages)
         return messages
 
 
@@ -80,7 +74,7 @@ class User(BTreeFolder2):
         else:
             mboxes = self.objectValues()
             
-        messages = []
+        messages = {}
         for mbox in mboxes:
             mbox_messages = []
             for m in mbox.objectValues():
@@ -92,6 +86,6 @@ class User(BTreeFolder2):
                         m.markAsCleared()
 
             if mbox_messages:
-                messages.append({'user':mbox.id, 'messages':tuple(mbox_messages)})
+                messages[mbox.id] = tuple(mbox_messages)
         return messages
 

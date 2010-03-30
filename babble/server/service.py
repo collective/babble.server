@@ -1,5 +1,6 @@
 import logging
 import datetime
+import simplejson as json
 
 from zope.interface import implements
 
@@ -13,6 +14,8 @@ from Products.BTreeFolder2.BTreeFolder2 import manage_addBTreeFolder
 
 from interfaces import IChatService
 from user import User
+from config import AUTH_FAIL
+from config import SUCCESS
 
 log = logging.getLogger('babble.server/service.py')
 
@@ -70,42 +73,12 @@ class ChatService(Folder):
         return users._getOb(username)
 
 
-    def _confirmAsOnline(self, username):
-        """ Confirm that the user is currently online by updating the 'user
-            access dict'
-        """
-        uad = self._getUserAccessDict()
-        uad[username] = datetime.datetime.now()
-
-
-    def register(self, username, password):
-        """ Register a user with the babble.server's acl_users and create a
-            'User' object in the 'Users' folder
-        """
-        self.acl_users.userFolderAddUser(
-                        username, password, roles=(), domains=())
-
-        users = self._getUsersFolder()
-        users._setObject(username, User(username))
-
-
-    def isRegistered(self, username):
-        """ Check whether the user is registered via acl_users """
-        return self.acl_users.getUser(username) and True or False
-
-
-    def setUserPassword(self, username, password):
-        """ Set the user's password """
-        self.acl_users.userFolderEditUser(
-                    username, password, roles=(), domains=())
-
-
-    def authenticate(self, username, password):
+    def _authenticate(self, username, password):
         """ Authenticate the user with username and password """
         return self.acl_users.authenticate(username, password, self.REQUEST)
-        
 
-    def isOnline(self, username):
+
+    def _isOnline(self, username):
         """ Determine whether the user is (probably) currently online
 
             Get the last time that the user updated the 'user access dict' and
@@ -120,15 +93,50 @@ class ChatService(Folder):
         return last_confirmed_date > cutoff_date
 
 
+    def confirmAsOnline(self, username):
+        """ Confirm that the user is currently online by updating the 'user
+            access dict'
+        """
+        uad = self._getUserAccessDict()
+        uad[username] = datetime.datetime.now()
+        return json.dumps({'status': SUCCESS})
+
+
+    def register(self, username, password):
+        """ Register a user with the babble.server's acl_users and create a
+            'User' object in the 'Users' folder
+        """
+        self.acl_users.userFolderAddUser(
+                        username, password, roles=(), domains=())
+
+        users = self._getUsersFolder()
+        users._setObject(username, User(username))
+        return json.dumps({'status': SUCCESS})
+
+
+    def isRegistered(self, username):
+        """ Check whether the user is registered via acl_users """
+        is_registered = self.acl_users.getUser(username) and True or False
+        return json.dumps({'status': SUCCESS, 'is_registered': is_registered})
+
+
+    def setUserPassword(self, username, password):
+        """ Set the user's password """
+        self.acl_users.userFolderEditUser(
+                    username, password, roles=(), domains=())
+        return json.dumps({'status': SUCCESS})
+
+
     def getOnlineUsers(self):
         """ Determine the (probable) online users from the 'user access dict' 
             and return them as a list
         """
         uad = self._getUserAccessDict()
-        return [user for user in uad.keys() if self.isOnline(user)]
+        ou = [user for user in uad.keys() if self._isOnline(user)]
+        return json.dumps({'status': SUCCESS, 'online_users': ou})
 
 
-    def setStatus(self, username, status):
+    def setStatus(self, username, password, status):
         """ Set the user's status.
 
             The user might have a status such as 'available', 'chatty', 
@@ -139,8 +147,13 @@ class ChatService(Folder):
             whether the user's 'status' property is at all relevant 
             and being used.
         """
+        if self._authenticate(username, password) is None:
+            log.error('setStatus: authentication failed')
+            return json.dumps({'status': AUTH_FAIL, 'messages': []})
+
         user = self._getUser(username)
         user.setStatus(status)
+        return json.dumps({'status': SUCCESS})
 
 
     def getStatus(self, username):
@@ -154,66 +167,69 @@ class ChatService(Folder):
             whether the user's 'status' property is at all relevant 
             and being used.
         """
-        if not self.isOnline(username):
-            return 'offline'
+        if not self._isOnline(username):
+            return json.dumps({'status': SUCCESS, 'userstatus': 'offline'})
             
         user = self._getUser(username)
-        return user.getStatus()
+        return json.dumps({'status': SUCCESS, 'userstatus': user.getStatus()})
 
 
-    def sendMessage(self, sender, recipient, message, register=False):
+    def sendMessage(self, username, password, recipient, message):
         """ Sends a message to recipient
 
             A message is added to the messagebox of both the sender and
             recipient.
         """
-        # Add for the sender, but make sure it's set to read.
-        user = self._getUser(sender)
-        user.addMessage(recipient, message, sender, read=True)
+        if self._authenticate(username, password) is None:
+            log.error('sendMessage: authentication failed')
+            return json.dumps({'status': AUTH_FAIL})
 
+        # Add msg to sender's box, but make sure it's set to read.
+        user = self._getUser(username)
+        user.addMessage(recipient, message, username, read=True)
+
+        # Add msg to recipient's box
         user = self._getUser(recipient)
-        user.addMessage(sender, message, sender)
+        user.addMessage(username, message, username)
+        return json.dumps({'status': SUCCESS})
 
 
-    def getUnreadMessages(
-                        self, 
-                        username, 
-                        sender=None, 
-                        read=True,
-                        confirm_online=True,
-                        ):
+    def getUnreadMessages(self, username, password, read=True):
         """ Returns the unread messages for a user. 
-            
-            If sender is none, return all unread messages, otherwise return
-            only the unread messages sent by that specific sender.
+            If read=True, then mark the messages as being read.  
         """
-        if confirm_online:
-            self._confirmAsOnline(username)
+        if self._authenticate(username, password) is None:
+            log.error('getUnreadMessages: authentication failed')
+            return json.dumps({'status': AUTH_FAIL, 'messages': {}})
 
         user = self._getUser(username)
-        messages = user.getUnreadMessages(sender, read)
-        return messages
+        messages = user.getUnreadMessages(read)
+        return json.dumps({'status': SUCCESS, 'messages': messages})
 
 
     def getUnclearedMessages(
                         self, 
                         username, 
+                        password,
                         sender=None, 
                         read=True,
                         clear=False,
-                        confirm_online=True,
                         ):
         """ Returns the uncleared messages for user. 
             
             If sender is none, return all uncleared messages, otherwise return
             only the uncleared messages sent by that specific sender.
+
+            If read=True, then mark the messages as being read.
+            If clear=True, then mark the messages as being cleared.
         """
-        if confirm_online:
-            self._confirmAsOnline(username)
+        if self._authenticate(username, password) is None:
+            log.error('getUnclearedMessages: authentication failed')
+            return json.dumps({'status': AUTH_FAIL, 'messages': {}})
 
         user = self._getUser(username)
         messages = user.getUnclearedMessages(sender, read, clear)
-        return messages
+        return json.dumps({'status': SUCCESS, 'messages': messages})
 
 
 InitializeClass(ChatService)

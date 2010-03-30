@@ -1,5 +1,5 @@
 import datetime
-from zope import component
+import simplejson as json
 
 from Testing import ZopeTestCase as ztc
 from ZPublisher import NotFound
@@ -7,6 +7,8 @@ from persistent.dict import PersistentDict
 
 from Products.TemporaryFolder.TemporaryFolder import SimpleTemporaryContainer
 from Products.Five import zcml
+from babble.server.config import SUCCESS
+from babble.server.config import AUTH_FAIL
 
 import Products.Five
 ztc.installProduct('Five')
@@ -35,7 +37,11 @@ class TestChatService(ztc.ZopeTestCase):
         """
         s = self.chatservice
         self.assertRaises(NotFound, s._getUser, 'username')
-        s.register('username', 'password')
+
+        status = s.register('username', 'password')
+        status = json.loads(status)
+        self.assertEquals(status['status'], SUCCESS)
+
         self.assertEqual('username', s._getUser('username').id)
 
 
@@ -78,40 +84,44 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual('username', s._getUser('username').id)
 
         r = s.isRegistered('username')
-        self.assertEqual(r, True)
+        r = json.loads(r)
+        self.assertEquals(r['status'], SUCCESS)
+        self.assertEquals(r['is_registered'], True)
 
-        auth = s.authenticate('username', 'password')
+        auth = s._authenticate('username', 'password')
         self.assertEqual(auth != None, True)
         self.assertEqual(auth.name, 'username')
 
         r = s.isRegistered('nobody')
-        self.assertEqual(r, False)
+        r = json.loads(r)
+        self.assertEquals(r['status'], SUCCESS)
+        self.assertEquals(r['is_registered'], False)
 
-        auth = s.authenticate('nobody', 'password')
+        auth = s._authenticate('nobody', 'password')
         self.assertEqual(auth, None)
 
         s.setUserPassword('username', 'new_password')
-        auth = s.authenticate('username', 'password')
+        auth = s._authenticate('username', 'password')
         self.assertEqual(auth, None)
 
-        auth = s.authenticate('username', 'new_password')
+        auth = s._authenticate('username', 'new_password')
         self.assertEqual(auth != None, True)
         self.assertEqual(auth.name, 'username')
 
 
     def test_online(self):
-        """ Test the '_confirmAsOnline', 'isOnline' and 'getOnlineUsers' methods """
+        """ Test the 'confirmAsOnline', '_isOnline' and 'getOnlineUsers' methods """
         s = self.chatservice
         u = 'username'
         s.register(u, u)
-        self.assertEqual(s.isOnline(u), False)
+        self.assertEqual(s._isOnline(u), False)
 
         # Test that a user entry was made into the 'user access dict'
-        s._confirmAsOnline(u)
+        s.confirmAsOnline(u)
         uad = s._getUserAccessDict()
         self.assertEqual(uad.get(u, None) != None, True)
 
-        self.assertEqual(s.isOnline(u), True)
+        self.assertEqual(s._isOnline(u), True)
 
         now = datetime.datetime.now()
         
@@ -119,29 +129,35 @@ class TestChatService(ztc.ZopeTestCase):
         # less than a minute) is still considered as online.
         delta = datetime.timedelta(seconds=59)
         uad[u] = datetime.datetime.now() - delta
-        self.assertEqual(s.isOnline(u), True)
+        self.assertEqual(s._isOnline(u), True)
 
         ou = s.getOnlineUsers()
-        self.assertEquals(ou, [u])
+        ou = json.loads(ou)
+        self.assertEquals(ou['status'], SUCCESS)
+        self.assertEquals(ou['online_users'], [u])
 
         # Test that a user that was confirmed as online one minute ago (i.e
         # at least a minute) is now considered as offline.
         delta = datetime.timedelta(minutes=1)
         uad[u] = datetime.datetime.now() - delta
-        self.assertEqual(s.isOnline(u), False)
+        self.assertEqual(s._isOnline(u), False)
 
         ou = s.getOnlineUsers()
-        self.assertEquals(ou, [])
+        ou = json.loads(ou)
+        self.assertEquals(ou['status'], SUCCESS)
+        self.assertEquals(ou['online_users'], [])
 
         # Test 'getOnlineUsers' with multiple online users.
-        s._confirmAsOnline(u)
+        s.confirmAsOnline(u)
 
         u = 'another'
         s.register(u, u)
-        s._confirmAsOnline(u)
+        s.confirmAsOnline(u)
 
         ou = s.getOnlineUsers()
-        self.assertEquals(ou, ['username', 'another'])
+        ou = json.loads(ou)
+        self.assertEquals(ou['status'], SUCCESS)
+        self.assertEquals(ou['online_users'], ['username', 'another'])
 
 
     def test_status(self):
@@ -149,48 +165,63 @@ class TestChatService(ztc.ZopeTestCase):
         """
         s = self.chatservice
         u = 'username'
-        s.register(u, u)
+        p = 'secret'
+        s.register(u, p)
 
-        self.assertEqual(s.getStatus(u), 'offline')
+        self.assertEqual(json.loads(s.getStatus(u))['userstatus'], 'offline')
 
-        s._confirmAsOnline(u)
-        self.assertEqual(s.getStatus(u), 'online')
+        s.confirmAsOnline(u)
+        self.assertEqual(json.loads(s.getStatus(u))['userstatus'], 'online')
 
-        s.setStatus(u, 'busy')
-        self.assertEqual(s.getStatus(u), 'busy')
+        response = s.setStatus(u, p, 'busy')
+        self.assertEqual(json.loads(response)['status'], SUCCESS)
+        self.assertEqual(json.loads(s.getStatus(u))['userstatus'], 'busy')
 
-        s.setStatus(u, 'away')
-        self.assertEqual(s.getStatus(u), 'away')
+        response = s.setStatus(u, p, 'away')
+        self.assertEqual(json.loads(response)['status'], SUCCESS)
+        self.assertEqual(json.loads(s.getStatus(u))['userstatus'], 'away')
 
         # Simulate one minute of time passing and then test the that user's
         # status is 'offline'
         delta = datetime.timedelta(minutes=1)
         uad = s._getUserAccessDict()
         uad[u] = datetime.datetime.now() - delta
-        self.assertEqual(s.getStatus(u), 'offline')
+        self.assertEqual(json.loads(s.getStatus(u))['userstatus'], 'offline')
 
 
     def test_messaging(self):
         """ Test the 'sendMessage' and 'getUnreadMessages' methods """
         s = self.chatservice
-        s.register('sender', 'sender')
-        s.register('recipient', 'passwd')
+        s.register('sender', 'secret')
+        s.register('recipient', 'secret')
 
-        um = s.getUnreadMessages(
-                                'recipient',
-                                sender='sender',
-                                read=True,
-                                confirm_online=True,
-                                )
-        self.assertEqual(um, [])
-        s.sendMessage('sender', 'recipient', 'message')
+        um = s.getUnreadMessages('recipient', 'secret', read=True)
+        um = json.loads(um)
+        self.assertEqual(um['status'], SUCCESS)
+        self.assertEqual(um['messages'], {})
 
-        um = s.getUnreadMessages(
-                                'recipient',
-                                sender='sender',
-                                read=False,
-                                confirm_online=True,
-                                )
+        # test authentication
+        response = s.sendMessage('sender', 'wrongpass', 'recipient', 'message')
+        response = json.loads(response)
+        self.assertEqual(response['status'], AUTH_FAIL)
+
+        response = s.sendMessage('sender', 'secret', 'recipient', 'message')
+        response = json.loads(response)
+        self.assertEqual(response['status'], SUCCESS)
+
+        # test authentication
+        um = s.getUnreadMessages('recipient', 'wrongpass', read=False)
+        um = json.loads(um)
+        self.assertEqual(um['status'], AUTH_FAIL)
+        self.assertEqual(um['messages'], {})
+
+        um = s.getUnreadMessages('recipient', 'secret', read=False)
+        um = json.loads(um)
+        self.assertEqual(um['status'], SUCCESS)
+
+        db = s.getUnreadMessages('recipient', 'secret', read=False)
+        db = json.loads(db)
+        self.assertEqual(um, db)
         # The unread messages datastructure looks as follows:
         # [
         #   {
@@ -198,71 +229,96 @@ class TestChatService(ztc.ZopeTestCase):
         #    'user': 'username'
         #    }
         # ]
-        #
+        msgdict = um['messages'] 
         # Test that messages from only one user was returned
-        self.assertEqual(len(um), 1)
+        self.assertEqual(msgdict.keys(), ['sender'])
         # Test that only one message was received from this user
-        self.assertEqual(len(um[0]['messages']), 1)
+        self.assertEqual(len(msgdict['sender']), 1)
         # Test that the message tuple has 4 elements
-        self.assertEqual(len(um[0]['messages'][0]), 4)
-        # Test that senders username
-        self.assertEqual(um[0]['messages'][0][0], 'sender')
+        self.assertEqual(len(msgdict['sender'][0]), 4)
+        # Test the senders username
+        self.assertEqual(msgdict['sender'][0][0], 'sender')
         # Test that message date
-        self.assertEqual(um[0]['messages'][0][1], 
+        self.assertEqual(msgdict['sender'][0][1], 
                     datetime.datetime.now().strftime("%Y/%m/%d"))
         # Test that message time
-        self.assertEqual(um[0]['messages'][0][2], 
+        self.assertEqual(msgdict['sender'][0][2], 
                     datetime.datetime.now().strftime("%H:%M"))
         # Test that message text
-        self.assertEqual(um[0]['messages'][0][3], 'message')
+        self.assertEqual(msgdict['sender'][0][3], 'message')
 
 
         # Test getUnreadMessages with multiple senders. We didn't mark the
         # previous sender's messages as 'read', so they should be returned
         # again.
-        s.register('sender2', 'sender2')
-        s.sendMessage('sender2', 'recipient', 'another message')
-        um = s.getUnreadMessages(
-                                'recipient',
-                                read=True,
-                                confirm_online=True,
-                                )
-        # Test that messages from two users were returned
-        self.assertEqual(len(um), 2)
-        # Test that only one message was received from each
-        self.assertEqual(len(um[0]['messages']), 1)
-        self.assertEqual(len(um[1]['messages']), 1)
+        s.register('sender2', 'secret')
+        response = s.sendMessage('sender2', 'secret', 'recipient', 'another msg')
+        response = json.loads(response)
+        self.assertEqual(response['status'], SUCCESS)
 
-        # Test the properties of the message sent by sender1
-        self.assertEqual(len(um[1]['messages'][0]), 4)
-        self.assertEqual(um[1]['messages'][0][0], 'sender2')
-        self.assertEqual(um[1]['messages'][0][1], 
+        um = s.getUnreadMessages('recipient', 'secret', read=True)
+        um = json.loads(um)
+
+        status = um['status']
+        self.assertEqual(status, SUCCESS)
+
+        msgdict = um['messages'] 
+        # Test that messages from two users were returned
+        self.assertEqual(len(msgdict.keys()), 2)
+        # Test that only one message was received from each
+        self.assertEqual(len(msgdict.values()[0]), 1)
+        self.assertEqual(len(msgdict.values()[1]), 1)
+
+        # Test the properties of the message sent by senders
+        self.assertEqual(len(msgdict['sender'][0]), 4)
+        self.assertEqual(len(msgdict['sender2'][0]), 4)
+
+        self.assertEqual(msgdict['sender2'][0][0], 'sender2')
+        self.assertEqual(msgdict['sender2'][0][1], 
                     datetime.datetime.now().strftime("%Y/%m/%d"))
-        self.assertEqual(um[1]['messages'][0][2], 
+        self.assertEqual(msgdict['sender2'][0][2], 
                     datetime.datetime.now().strftime("%H:%M"))
-        self.assertEqual(um[1]['messages'][0][3], 'another message')
+        self.assertEqual(msgdict['sender2'][0][3], 'another msg')
 
         # All the unread messages for 'recipient' has now been marked as read,
         # lets test that no new messages are returned
-        um = s.getUnreadMessages('recipient')
-        self.assertEqual(um, [])
+        um = s.getUnreadMessages('recipient', 'secret')
+        um = json.loads(um)
+        self.assertEqual(um['status'], SUCCESS)
+        self.assertEqual(um['messages'], {})
 
 
     def test_message_clearing(self):
         """ Test the 'sendMessage' and 'getUnclearedMessages' methods """
         s = self.chatservice
-        s.register('sender', 'sender')
-        s.register('recipient', 'passwd')
+        s.register('sender', 'secret')
+        s.register('recipient', 'secret')
 
-        um = s.getUnclearedMessages('recipient', sender='sender')
-        self.assertEqual(um, [])
-        s.sendMessage('sender', 'recipient', 'message')
+        um = s.getUnclearedMessages('recipient', 'secret', sender='sender')
+        um = json.loads(um)
+        self.assertEqual(um['messages'], {})
+
+        response = s.sendMessage('sender', 'secret', 'recipient', 'message')
+        response = json.loads(response)
+        self.assertEqual(response['status'], SUCCESS)
+
+        # Test authentication
+        um = s.getUnclearedMessages(
+                            'recipient', 
+                            'wrongpass', 
+                            sender='sender', 
+                            clear=False)
+        um = json.loads(um)
+        self.assertEqual(um['status'], AUTH_FAIL)
+        self.assertEqual(um['messages'], {})
 
         um = s.getUnclearedMessages(
-                                'recipient',
-                                sender='sender',
-                                clear=False,
-                                confirm_online=True,)
+                            'recipient', 
+                            'secret', 
+                            sender='sender', 
+                            clear=False)
+        um = json.loads(um)
+        self.assertEqual(um['status'], SUCCESS)
         # The uncleared messages datastructure looks as follows:
         # [
         #   {
@@ -271,53 +327,58 @@ class TestChatService(ztc.ZopeTestCase):
         #    }
         # ]
         #
+        msgs = um['messages'] 
         # Test that messages from only one user was returned
-        self.assertEqual(len(um), 1)
+        self.assertEqual(len(msgs), 1)
         # Test that only one message was received from this user
-        self.assertEqual(len(um[0]['messages']), 1)
+        self.assertEqual(len(msgs.values()[0]), 1)
         # Test that the message tuple has 4 elements
-        self.assertEqual(len(um[0]['messages'][0]), 4)
+        self.assertEqual(len(msgs.values()[0][0]), 4)
         # Test that senders username
-        self.assertEqual(um[0]['messages'][0][0], 'sender')
+        self.assertEqual(msgs.values()[0][0][0], 'sender')
         # Test that message date
-        self.assertEqual(um[0]['messages'][0][1], 
+        self.assertEqual(msgs.values()[0][0][1], 
                     datetime.datetime.now().strftime("%Y/%m/%d"))
         # Test that message time
-        self.assertEqual(um[0]['messages'][0][2], 
+        self.assertEqual(msgs.values()[0][0][2], 
                     datetime.datetime.now().strftime("%H:%M"))
         # Test that message text
-        self.assertEqual(um[0]['messages'][0][3], 'message')
+        self.assertEqual(msgs.values()[0][0][3], 'message')
 
 
         # Test getUnclearedMessages with multiple senders. We didn't mark the
         # previous sender's messages as 'clear', so they should be returned
         # again.
-        s.register('sender2', 'sender2')
-        s.sendMessage('sender2', 'recipient', 'another message')
-        um = s.getUnclearedMessages(
-                                'recipient',
-                                clear=True,
-                                confirm_online=True,
-                                )
+        s.register('sender2', 'secret')
+        response = s.sendMessage('sender2', 'secret', 'recipient', 'another msg')
+        response = json.loads(response)
+        self.assertEqual(response['status'], SUCCESS)
+
+        um = s.getUnclearedMessages('recipient', 'secret', clear=True)
+        um = json.loads(um)
+        self.assertEqual(um['status'], SUCCESS)
         # Test that messages from two users were returned
-        self.assertEqual(len(um), 2)
+        msgs = um['messages'] 
+        self.assertEqual(len(msgs), 2)
         # Test that only one message was received from each
-        self.assertEqual(len(um[0]['messages']), 1)
-        self.assertEqual(len(um[1]['messages']), 1)
+        self.assertEqual(len(msgs.values()[0]), 1)
+        self.assertEqual(len(msgs.values()[1]), 1)
 
         # Test the properties of the message sent by sender1
-        self.assertEqual(len(um[1]['messages'][0]), 4)
-        self.assertEqual(um[1]['messages'][0][0], 'sender2')
-        self.assertEqual(um[1]['messages'][0][1], 
+        self.assertEqual(len(msgs.values()[1][0]), 4)
+        self.assertEqual(msgs['sender2'][0][0], 'sender2')
+        self.assertEqual(msgs['sender2'][0][1], 
                     datetime.datetime.now().strftime("%Y/%m/%d"))
-        self.assertEqual(um[1]['messages'][0][2], 
+        self.assertEqual(msgs['sender2'][0][2], 
                     datetime.datetime.now().strftime("%H:%M"))
-        self.assertEqual(um[1]['messages'][0][3], 'another message')
+        self.assertEqual(msgs['sender2'][0][3], 'another msg')
 
         # All the uncleared messages for 'recipient' has now been marked as clear,
         # lets test that no new messages are returned
-        um = s.getUnclearedMessages('recipient')
-        self.assertEqual(um, [])
+        um = s.getUnclearedMessages('recipient', 'secret')
+        um = json.loads(um)
+        self.assertEqual(um['status'], SUCCESS)
+        self.assertEqual(um['messages'], {})
 
 
 def test_suite():
