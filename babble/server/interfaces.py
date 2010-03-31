@@ -2,7 +2,13 @@ from zope.interface import Interface
 from zope import schema
 
 class IChatService(Interface):
-    """ """
+    """ 
+        All the public methods return JSON dicts. Each JSON dict will have a
+        'status' field, that can contain one of the following integer values:
+
+        0: Success
+        -1: Authorization failed
+    """
 
     def _getUserAccessDict(self):
         """ The user access dictionary is stored inside a Temporary Folder.
@@ -26,27 +32,10 @@ class IChatService(Interface):
         """ Retrieve the IUser obj from the 'Users' folder.
         """
 
-
-    def _confirmAsOnline(self, username):
-        """ Confirm that the user is currently online by updating the 'user
-            access dict'
-        """
-
-    def register(self, username, password):
-        """ Register a user with the babble.server's acl_users and create a
-            'User' object in the 'Users' folder
-        """
-
-    def isRegistered(self, username):
-        """ Check whether the user is registered via babble.server's acl_users """
-
-    def setUserPassword(self, username, password):
-        """ Set the user's password """
-
-    def authenticate(self, username, password):
+    def _authenticate(self, username, password):
         """ Authenticate the user with username and password """
 
-    def isOnline(self, username):
+    def _isOnline(self, username):
         """ Determine whether the user is (probably) currently online
 
             Get the last time that the user updated the 'user access dict' and
@@ -55,9 +44,38 @@ class IChatService(Interface):
             If yes, then we assume the user is online, otherwise not.
         """
 
+    def confirmAsOnline(self, username):
+        """ Confirm that the user is currently online by updating the 'user
+            access dict'
+
+            returns {'status': int}
+        """
+
+    def register(self, username, password):
+        """ Register a user with the babble.server's acl_users and create a
+            'User' object in the 'Users' folder
+
+            returns {'status': int}
+        """
+
+    def isRegistered(self, username):
+        """ Check whether the user is registered via babble.server's acl_users 
+        
+            returns {'status': int, 'is_registered': bool}
+        """
+
+
+    def setUserPassword(self, username, password):
+        """ Set the user's password 
+
+            returns {'status': int}
+        """
+
     def getOnlineUsers(self):
         """ Determine the (probable) online users from the 'user access dict' 
             and return them as a list
+
+            returns {'status': int, 'online_users': list}
         """
 
     def setStatus(self, username, status):
@@ -70,6 +88,8 @@ class IChatService(Interface):
             The 'status' attribute is optional, it depends on the chat client 
             whether the user's 'status' property is at all relevant 
             and being used.
+
+            returns {'status': int}
         """
 
     def getStatus(self, username):
@@ -82,13 +102,17 @@ class IChatService(Interface):
             The 'status' attribute is optional, it depends on the chat client 
             whether the user's 'status' property is at all relevant 
             and being used.
+
+            returns {'status': int, 'userstatus': string}
         """
 
-    def sendMessage(self, sender, recipient, message, register=False):
+    def sendMessage(self, username, password, recipient, message):
         """ Sends a message to recipient
 
             A message is added to the messagebox of both the sender and
             recipient.
+
+            returns {'status': string}
         """
 
     def getUnreadMessages(self, username, password, read=True):
@@ -96,6 +120,8 @@ class IChatService(Interface):
             
             If sender is none, return all unread messages, otherwise return
             only the unread messages sent by that specific sender.
+
+            returns {'status': string, 'messages': dict}
         """
 
     def getUnclearedMessages(
@@ -114,6 +140,8 @@ class IChatService(Interface):
 
             If clear=True, then mark them as cleared. Messages are usually marked
             as cleared when the chat session is over.
+
+            returns {'status': string, 'messages': list}
         """
 
 
