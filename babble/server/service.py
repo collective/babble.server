@@ -37,11 +37,20 @@ class ChatService(Folder):
             These date values can be used to determine (guess) whether the 
             user is still currently online.
         """
+        # Implement simple caching to reduce the number of write conflicts
+        now = datetime.datetime.now()
+        if hasattr(self, '_v_use_access_dict') or \
+                getattr(self, '_v_cache_timeout', now) > now:
+            return getattr(self, '_v_use_access_dict')
+
+        delta = datetime.timedelta(seconds=30)
+        cache_timeout = now - delta
+        setattr(self, '_v_cache_timeout', cache_timeout)
+
         if not hasattr(self, 'temp_folder'): # Acquisition
             log.warn("The chatservice 'Online Users' folder did not exist, "
                 "and has been automatically recreated.")
             raise NotFound("/temp_folder does not exist.")
-
             
         temp_folder = self.temp_folder # Acquisition
         if not temp_folder.hasObject('user_access_dict'):
@@ -49,7 +58,9 @@ class ChatService(Folder):
                     "and has been automatically recreated.")
             temp_folder._setOb('user_access_dict', PersistentDict())
 
-        return temp_folder._getOb('user_access_dict')
+        uad = temp_folder._getOb('user_access_dict')
+        setattr(self, '_v_use_access_dict', uad.copy())
+        return uad
 
 
     def _getUsersFolder(self):
