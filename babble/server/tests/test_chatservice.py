@@ -64,6 +64,10 @@ class TestChatService(ztc.ZopeTestCase):
         uad = s._getUserAccessDict()
         self.assertEqual(uad, PersistentDict())
 
+        # Returned dict should now be from cache...
+        uad = s._getUserAccessDict()
+        self.assertEqual(uad, getattr(s, '_v_user_access_dict'))
+
         # Test that the 'user access dict' is recreated if it is deleted (which
         # is plausible since it's in a temp folder)
         s.temp_folder._getOb('user_access_dict')
@@ -72,6 +76,8 @@ class TestChatService(ztc.ZopeTestCase):
 
         # Test the NotFound is raised when the 'temp_folder' is not there
         self.app._delOb('temp_folder')
+        # Invalidate the cache
+        delattr(s, '_v_user_access_dict')
         self.assertRaises(NotFound, s._getUserAccessDict)
 
 
@@ -171,6 +177,11 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(json.loads(s.getStatus(u))['userstatus'], 'offline')
 
         s.confirmAsOnline(u)
+        self.assertEqual(json.loads(s.getStatus(u))['userstatus'], 'online')
+
+        # Test authentication
+        response = s.setStatus(u, 'wrongpass', 'busy')
+        self.assertEqual(json.loads(response)['status'], AUTH_FAIL)
         self.assertEqual(json.loads(s.getStatus(u))['userstatus'], 'online')
 
         response = s.setStatus(u, p, 'busy')

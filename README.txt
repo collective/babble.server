@@ -17,7 +17,6 @@ Features:
 - Web service: all public API methods return JSON strings.
 - 100% test coverage.
 
-
 API:
 ----
 

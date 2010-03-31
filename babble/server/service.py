@@ -39,9 +39,9 @@ class ChatService(Folder):
         """
         # Implement simple caching to reduce the number of write conflicts
         now = datetime.datetime.now()
-        if hasattr(self, '_v_use_access_dict') or \
+        if hasattr(self, '_v_user_access_dict') or \
                 getattr(self, '_v_cache_timeout', now) > now:
-            return getattr(self, '_v_use_access_dict')
+            return getattr(self, '_v_user_access_dict')
 
         delta = datetime.timedelta(seconds=30)
         cache_timeout = now - delta
@@ -59,7 +59,7 @@ class ChatService(Folder):
             temp_folder._setOb('user_access_dict', PersistentDict())
 
         uad = temp_folder._getOb('user_access_dict')
-        setattr(self, '_v_use_access_dict', uad.copy())
+        setattr(self, '_v_user_access_dict', uad.copy())
         return uad
 
 
