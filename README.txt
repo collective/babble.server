@@ -37,6 +37,14 @@ The current API is:
 * getUnreadMessages(username, password, read=True)
 * getUnclearedMessages(username, password, sender=None, read=True, clear=False)
 
+Contact:
+--------
+
+Is there vital information lacking in this readme?
+
+Please contact me with questions or suggestions:
+brand <at> syslab <dot> com
+
 
 
 
