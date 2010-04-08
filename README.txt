@@ -3,9 +3,9 @@ Introduction
 
 babble.server is a messaging service for Zope2 based systems.
 
-It's currently the messaging service for babble.client, an instant messaging
-client for Plone. It doesn't have any dependencies on Plone or babble.client
-and is designed to be usable as a standalone messaging service.
+It's the chat server for babble.client, an instant messaging
+client for Plone, but it doesn't have any dependencies on Plone or babble.client
+and is designed to be usable as a backend, independent of any frontend.
 
 Features:
 ---------
@@ -32,27 +32,16 @@ purpose and the JSON values it returns, please see:
 - babble.server.interfaces.py:IChatService.py
 
 The current API is:
-* confirmAsOnline(username)
-* register(username, password)
-* isRegistered(username)
-* setUserPassword(username, password)
-* getOnlineUsers()
-* setStatus(username, password, status)
-* getStatus(username)
-* sendMessage(username, password, recipient, message)
-* getUnreadMessages(username, password, read=True)
-* getUnclearedMessages(username, password, sender=None, read=True, clear=False)
 
-Contact:
---------
-
-Is there vital information lacking in this readme?
-
-Please contact me with questions or suggestions:
-brand <at> syslab <dot> com
-
-
-
-
+    * confirmAsOnline(username)
+    * register(username, password)
+    * isRegistered(username)
+    * setUserPassword(username, password)
+    * getOnlineUsers()
+    * setStatus(username, password, status)
+    * getStatus(username)
+    * sendMessage(username, password, recipient, message)
+    * getUnreadMessages(username, password, read=True)
+    * getUnclearedMessages(username, password, sender=None, read=True, clear=False)
 
 
