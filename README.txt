@@ -17,6 +17,13 @@ Features:
 - Web service: all public API methods return JSON strings.
 - 100% test coverage.
 
+Usage:
+------
+
+Simply add the Chat Service in the ZMI (Zope Management Interface) by clicking
+on the dropdown box and choosing it from the list.
+
+
 API:
 ----
 
