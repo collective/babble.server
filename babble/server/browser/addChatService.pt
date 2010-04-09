@@ -13,7 +13,7 @@
                 </div>
             </td>
             <td align="left" valign="top">
-                <input type="text" name="add_input_name" size="40" />
+                <input type="text" name="add_input_name" size="40" value="chatservice" />
             </td>
         </tr>
         <tr>
@@ -23,7 +23,7 @@
                 </div>
             </td>
             <td align="left" valign="top">
-                <input type="text" name="title" size="40" />
+                <input type="text" name="title" size="40" value="Chat Service" />
             </td>
         </tr>
         <tr>
