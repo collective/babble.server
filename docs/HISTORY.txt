@@ -1,7 +1,12 @@
 Changelog
 =========
 
+0.1 (Unreleased)
+------------------
+
+- Added default title and id values for the Chat Service (jcbrand)
+
 0.1a1 (2010-04-08)
 ------------------
 
-- Initial release
+- Initial release (jcbrand)
