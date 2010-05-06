@@ -17,31 +17,9 @@ Features:
 - Web service: all public API methods return JSON strings.
 - 100% test coverage.
 
-Usage:
-------
+Additional info:
+----------------
 
-Simply add the Chat Service in the ZMI (Zope Management Interface) by clicking
-on the dropdown box and choosing it from the list.
-
-
-API:
-----
-
-For a detailed look at the API methods with a description of each ones 
-purpose and the JSON values it returns, please see:
-- babble.server.interfaces.py:IChatService.py
-
-The current API is:
-
-    * confirmAsOnline(username)
-    * register(username, password)
-    * isRegistered(username)
-    * setUserPassword(username, password)
-    * getOnlineUsers()
-    * setStatus(username, password, status)
-    * getStatus(username)
-    * sendMessage(username, password, recipient, message)
-    * getUnreadMessages(username, password, read=True)
-    * getUnclearedMessages(username, password, sender=None, read=True, clear=False)
-
+For additional info, please read the documentation at 
+http://opkode.net/babbledocs/babble.server/index.html 
 
