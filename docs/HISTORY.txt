@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.2dev (unreleased)
+
+- No changes yet
+
+
 0.2 (2010-10-18)
 ----------------
 
