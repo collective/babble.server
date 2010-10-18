@@ -1,6 +1,12 @@
 Changelog
 =========
 
+0.2 (unreleased)
+----------------
+
+- converted message dates to UTC
+  [pilz]
+
 0.1 (2010-05-05)
 ----------------
 
