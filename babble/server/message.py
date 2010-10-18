@@ -16,7 +16,7 @@ class Message(SimpleItem):
         self._read = read
         self.author = author
         self.text = message
-        self.time = DateTime()
+        self.time = DateTime().toZone('UTC')
         self.id = 'message.%s' % self.time.millis()
         
     def unread(self):
