@@ -3,19 +3,18 @@ Changelog
 
 0.2dev (unreleased)
 
-- No changes yet
-
+- Added simple caching for the User Access Dict to lessen writes [jcbrand[
+- Added the z3c.autoinclude plugin [jcbrand]
 
 0.2 (2010-10-18)
 ----------------
 
-- converted message dates to UTC
-  [pilz]
+- converted message dates to UTC [pilz]
 
 0.1 (2010-05-05)
 ----------------
 
-- Added default title and id values for the Chat Service (jcbrand)
+- Added default title and id values for the Chat Service [jcbrand]
 
 0.1a1 (2010-04-08)
 ------------------
