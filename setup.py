@@ -19,11 +19,12 @@ long_description = (
 setup(
     name='babble.server',
     version=version,
-    description="A backend babble.server for Zope",
+    description="A backend messaging server for Zope2.",
     long_description=long_description,
     # Get more strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
     "Programming Language :: Python",
+    "Framework :: Zope2",
     ],
     keywords='chat zope plone',
     author='JC Brand',
@@ -38,5 +39,7 @@ setup(
         'setuptools',
     ],
     entry_points="""
+      [z3c.autoinclude.plugin]
+      target = plone
     """,
     )
