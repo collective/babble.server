@@ -63,7 +63,7 @@ class ChatService(Folder):
 
         # Update the cache with the new user_access_dict if it is different
         if flush_and_recache \
-            or hasattr(self, '_v_user_access_dict') \   
+            or hasattr(self, '_v_user_access_dict') \
             and getattr(self, '_v_user_access_dict') != uad.copy():
             
             setattr(self, '_v_user_access_dict', uad.copy())
