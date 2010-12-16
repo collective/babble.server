@@ -1,5 +1,6 @@
 import datetime
 import simplejson as json
+from pytz import utc
 
 from Testing import ZopeTestCase as ztc
 from ZPublisher import NotFound
@@ -61,24 +62,77 @@ class TestChatService(ztc.ZopeTestCase):
         """ Test the '_getUserAccessDict' method
         """ 
         s = self.chatservice
-        uad = s._getUserAccessDict()
+        # We begin with no UAD.
+        self.assertEqual(s.temp_folder.hasObject('user_access_dict'), False)
+
+        uad = s._getCachedUserAccessDict()
+        # The method should return an empty persistent dict
         self.assertEqual(uad, PersistentDict())
 
-        # Returned dict should now be from cache...
+        # Now there should be a UAD
+        assert(s.temp_folder.hasObject('user_access_dict'))
+
+        # The cache should be set and it's expiry date must be in the future
+        now = datetime.datetime.now()
+        assert(getattr(s, '_v_cache_timeout') > now)
+        self.assertEqual(getattr(s, '_v_user_access_dict'), PersistentDict())
+
+        # Put a user into the UAD
+        online_users = {'max_musterman':now}
+        s._setUserAccessDict(**online_users)
+
+        # Test that he is there
         uad = s._getUserAccessDict()
-        self.assertEqual(uad, getattr(s, '_v_user_access_dict'))
+        self.assertEqual(uad, online_users)
+
+        # Test that he is also in the cache (first make sure that the cache
+        # timeout is in the future)
+        delta = datetime.timedelta(seconds=30)
+        cache_timeout = now + delta
+        setattr(s, '_v_cache_timeout', cache_timeout)
+
+        # Now test...
+        uad = s._getCachedUserAccessDict()
+        self.assertEqual(uad, online_users)
+
+        # Wipe the UAD
+        s.temp_folder._setOb('user_access_dict', PersistentDict())
+
+        # The cached value should still be there...
+        uad = s._getCachedUserAccessDict()
+        self.assertEqual(uad, online_users)
+
+        # Wipe the cache
+        setattr(s, '_v_cache_timeout', now-delta)
+        uad = s._getCachedUserAccessDict()
+        self.assertEqual(uad, PersistentDict())
+
+        # Put a user into the UAD
+        online_users = {'maxine_musterman':now}
+        s._setUserAccessDict(**online_users)
+
+        # Test that he is there and in the cache...
+        uad = s._getUserAccessDict()
+        self.assertEqual(uad, online_users)
+
+        now = datetime.datetime.now()
+        assert(getattr(s, '_v_cache_timeout') > now)
+
+        uad = s._getCachedUserAccessDict()
+        self.assertEqual(uad, online_users)
 
         # Test that the 'user access dict' is recreated if it is deleted (which
         # is plausible since it's in a temp folder)
-        s.temp_folder._getOb('user_access_dict')
+        s.temp_folder._delOb('user_access_dict')
         uad = s._getUserAccessDict()
         self.assertEqual(uad, PersistentDict())
 
         # Test the NotFound is raised when the 'temp_folder' is not there
         self.app._delOb('temp_folder')
         # Invalidate the cache
-        delattr(s, '_v_user_access_dict')
         self.assertRaises(NotFound, s._getUserAccessDict)
+        delattr(s, '_v_user_access_dict')
+        self.assertRaises(NotFound, s._getCachedUserAccessDict)
 
 
     def test_registration(self):
@@ -251,10 +305,10 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(msgdict['sender'][0][0], 'sender')
         # Test that message date
         self.assertEqual(msgdict['sender'][0][1], 
-                    datetime.datetime.now().strftime("%Y/%m/%d"))
+                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
         # Test that message time
         self.assertEqual(msgdict['sender'][0][2], 
-                    datetime.datetime.now().strftime("%H:%M"))
+                    datetime.datetime.now(utc).strftime("%H:%M"))
         # Test that message text
         self.assertEqual(msgdict['sender'][0][3], 'message')
 
@@ -286,9 +340,9 @@ class TestChatService(ztc.ZopeTestCase):
 
         self.assertEqual(msgdict['sender2'][0][0], 'sender2')
         self.assertEqual(msgdict['sender2'][0][1], 
-                    datetime.datetime.now().strftime("%Y/%m/%d"))
+                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
         self.assertEqual(msgdict['sender2'][0][2], 
-                    datetime.datetime.now().strftime("%H:%M"))
+                    datetime.datetime.now(utc).strftime("%H:%M"))
         self.assertEqual(msgdict['sender2'][0][3], 'another msg')
 
         # All the unread messages for 'recipient' has now been marked as read,
@@ -349,10 +403,11 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(msgs.values()[0][0][0], 'sender')
         # Test that message date
         self.assertEqual(msgs.values()[0][0][1], 
-                    datetime.datetime.now().strftime("%Y/%m/%d"))
+                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
         # Test that message time
+
         self.assertEqual(msgs.values()[0][0][2], 
-                    datetime.datetime.now().strftime("%H:%M"))
+                    datetime.datetime.now(utc).strftime("%H:%M"))
         # Test that message text
         self.assertEqual(msgs.values()[0][0][3], 'message')
 
@@ -379,9 +434,9 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(len(msgs.values()[1][0]), 4)
         self.assertEqual(msgs['sender2'][0][0], 'sender2')
         self.assertEqual(msgs['sender2'][0][1], 
-                    datetime.datetime.now().strftime("%Y/%m/%d"))
+                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
         self.assertEqual(msgs['sender2'][0][2], 
-                    datetime.datetime.now().strftime("%H:%M"))
+                    datetime.datetime.now(utc).strftime("%H:%M"))
         self.assertEqual(msgs['sender2'][0][3], 'another msg')
 
         # All the uncleared messages for 'recipient' has now been marked as clear,
