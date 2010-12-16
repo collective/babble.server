@@ -25,8 +25,8 @@ class ChatService(Folder):
     security = ClassSecurityInfo()
     security.declareObjectProtected('Use Chat Service')
 
-    def _getUserAccessDict(self):
-        """ The user access dictionary is stored inside a Temporary Folder.
+    def _getUserAccessDict(self, flush_and_recache=False):
+        """ The 'user access dictionary' is stored inside a Temporary Folder.
             A Temporary Folder is kept in RAM and it loses all its contents 
             whenever the Zope server is restarted.
 
@@ -37,30 +37,57 @@ class ChatService(Folder):
             These date values can be used to determine (guess) whether the 
             user is still currently online.
         """
-        # Implement simple caching to reduce the number of write conflicts
+        # Implement simple caching to reduce the number of writes
         now = datetime.datetime.now()
-        if hasattr(self, '_v_user_access_dict') or \
-                getattr(self, '_v_cache_timeout', now) > now:
+        if not flush_and_recache \
+            and hasattr(self, '_v_user_access_dict') \
+            and getattr(self, '_v_cache_timeout', now) > now:
+
             return getattr(self, '_v_user_access_dict')
 
-        delta = datetime.timedelta(seconds=30)
-        cache_timeout = now - delta
-        setattr(self, '_v_cache_timeout', cache_timeout)
-
         if not hasattr(self, 'temp_folder'): # Acquisition
-            log.warn("The chatservice 'Online Users' folder did not exist, "
-                "and has been automatically recreated.")
+            log.error("The chatservice 'Online Users' folder does not exist!")
             raise NotFound("/temp_folder does not exist.")
             
-        temp_folder = self.temp_folder # Acquisition
-        if not temp_folder.hasObject('user_access_dict'):
+        if not self.temp_folder.hasObject('user_access_dict'):
             log.info("The user_access_dict did not exist, "
                     "and has been automatically recreated.")
-            temp_folder._setOb('user_access_dict', PersistentDict())
+            self.temp_folder._setOb('user_access_dict', PersistentDict())
 
-        uad = temp_folder._getOb('user_access_dict')
-        setattr(self, '_v_user_access_dict', uad.copy())
+        # Set a new cache timeout, 30 secs in the future
+        delta = datetime.timedelta(seconds=30)
+        cache_timeout = now + delta
+        setattr(self, '_v_cache_timeout', cache_timeout)
+
+        uad = self.temp_folder._getOb('user_access_dict')
+
+        # Update the cache with the new user_access_dict if it is different
+        if flush_and_recache \
+            or hasattr(self, '_v_user_access_dict') \   
+            and getattr(self, '_v_user_access_dict') != uad.copy():
+            
+            setattr(self, '_v_user_access_dict', uad.copy())
+
         return uad
+
+
+    def _setUserAccessDict(self, **kw):
+        """ Make sure that the temp_folder which stores the dict of online
+            users is updated. 
+            Also make sure that the cache is up to date with new values.
+        """
+        uad = self._getUserAccessDict(flush_and_recache=True)
+        uad.update(kw)
+
+        # Set the temp_folder
+        self.temp_folder._setOb('user_access_dict', uad.copy())
+
+        # Set the cache
+        now = datetime.datetime.now()
+        delta = datetime.timedelta(seconds=30)
+        cache_timeout = now + delta
+        setattr(self, '_v_cache_timeout', cache_timeout)
+        setattr(self, '_v_user_access_dict', uad.copy())
 
 
     def _getUsersFolder(self):
@@ -108,8 +135,7 @@ class ChatService(Folder):
         """ Confirm that the user is currently online by updating the 'user
             access dict'
         """
-        uad = self._getUserAccessDict()
-        uad[username] = datetime.datetime.now()
+        self._setUserAccessDict(**{username:datetime.datetime.now()})
         return json.dumps({'status': SUCCESS})
 
 
