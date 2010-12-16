@@ -1,9 +1,10 @@
 Changelog
 =========
 
-0.2dev (unreleased)
+0.3dev (unreleased)
+-------------------
 
-- Added simple caching for the User Access Dict to lessen writes [jcbrand[
+- Added simple caching for the User Access Dict to lessen writes [jcbrand]
 - Added the z3c.autoinclude plugin [jcbrand]
 
 0.2 (2010-10-18)
