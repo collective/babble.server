@@ -133,6 +133,9 @@ class ChatService(Folder):
         """ Confirm that the user is currently online by updating the 'user
             access dict'
         """
+        if username is None:
+            return json.dumps({'status': AUTH_FAIL})
+
         self._setUserAccessDict(**{username:datetime.datetime.now()})
         return json.dumps({'status': SUCCESS})
 
