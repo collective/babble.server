@@ -23,3 +23,7 @@ Additional info:
 For additional info, please read the documentation at 
 http://opkode.net/babbledocs/babble.server/index.html 
 
+TODO:
+-----
+ - Make the read attr on messages a timestamp (instead of bool)
+
