@@ -42,7 +42,7 @@ class ChatService(Folder):
             raise NotFound("/temp_folder does not exist.")
 
         if not self.temp_folder.hasObject('user_access_dict'):
-            log.info("The user_access_dict did not exist, "
+            log.debug("The user_access_dict did not exist, "
                     "and has been automatically recreated.")
             self.temp_folder._setOb('user_access_dict', PersistentDict())
 
