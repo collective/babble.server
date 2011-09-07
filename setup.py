@@ -37,6 +37,10 @@ setup(
     zip_safe=False,
     install_requires=[
         'setuptools',
+        'lxml',
+        'PIL',
+        'simplejson',
+        'zope2',
     ],
     entry_points="""
       [z3c.autoinclude.plugin]
