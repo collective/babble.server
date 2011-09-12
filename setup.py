@@ -38,7 +38,7 @@ setup(
     install_requires=[
         'setuptools',
         'lxml',
-        'PIL',
+        'Pillow',
         'simplejson',
         'zope2',
     ],
