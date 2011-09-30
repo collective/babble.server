@@ -1,4 +1,6 @@
 import logging
+from DateTime import DateTime
+from DateTime.interfaces import SyntaxError
 from zope.interface import implements
 from Products.BTreeFolder2.BTreeFolder2 import BTreeFolder2
 from messagebox import MessageBox
@@ -40,6 +42,33 @@ class User(BTreeFolder2):
         """
         mbox = self._getMessageBox(contact)
         mbox.addMessage(message, author, read)
+
+
+    def getMessages(self, since):
+        """ Return all messages since a certain date. 
+            If 'since' is not provided, all messages are returned.
+
+            The date format of 'since' must be iso8601. 
+            
+            To generate a date in this format, use the ISO8601() method for
+            Zope2 DateTime objects and isoformat() for python's builtin
+            datetime types.
+
+            It's very important that timezone information is also included!
+            I.e datetime.now(utc) instead of datetime.now()
+        """
+        since = DateTime(since)
+        mboxes = self.objectValues()
+        messages = {}
+        for mbox in mboxes:
+            mbox_messages = []
+            for m in mbox.objectValues():
+                if m.time > since:
+                    mbox_messages.append((m.author, m.time.Date(), m.time.TimeMinutes(), m.text))
+
+            if mbox_messages:
+                messages[mbox.id] = tuple(mbox_messages)
+        return messages
 
 
     def getUnreadMessages(self, read=True):

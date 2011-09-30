@@ -354,7 +354,8 @@ class TestChatService(ztc.ZopeTestCase):
 
 
     def test_message_clearing(self):
-        """ Test the 'sendMessage' and 'getUnclearedMessages' methods """
+        """ Test the 'sendMessage' and 'getUnclearedMessages' methods 
+        """
         s = self.chatservice
         s.register('sender', 'secret')
         s.register('recipient', 'secret')
@@ -445,6 +446,100 @@ class TestChatService(ztc.ZopeTestCase):
         um = json.loads(um)
         self.assertEqual(um['status'], SUCCESS)
         self.assertEqual(um['messages'], {})
+
+
+    def testMessageFetching(self):
+        """ Test the getMessages method 
+        """
+        s = self.chatservice
+        s.register('sender', 'secret')
+        s.register('recipient', 'secret')
+
+        um = s.getMessages('recipient', 'secret')
+        um = json.loads(um)
+        self.assertEqual(um['messages'], {})
+
+        before_first_msg = datetime.datetime.now(utc).isoformat()
+
+        response = s.sendMessage('sender', 'secret', 'recipient', 'first message')
+        response = json.loads(response)
+        self.assertEqual(response['status'], SUCCESS)
+
+        # Test authentication
+        um = s.getMessages('recipient', 'wrongpass')
+        um = json.loads(um)
+        self.assertEqual(um['status'], AUTH_FAIL)
+        self.assertEqual(um['messages'], {})
+
+        um = s.getMessages('recipient', 'secret')
+        um = json.loads(um)
+        self.assertEqual(um['status'], SUCCESS)
+        # The uncleared messages datastructure looks as follows:
+        # [
+        #   {
+        #    'messages': (('username', '2010/03/08', '15:25', 'message'),), 
+        #    'user': 'username'
+        #    }
+        # ]
+        #
+        msgs = um['messages'] 
+        # Test that messages from only one user was returned
+        self.assertEqual(len(msgs), 1)
+        # Test that only one message was received from this user
+        self.assertEqual(len(msgs.values()[0]), 1)
+        # Test that the message tuple has 4 elements
+        self.assertEqual(len(msgs.values()[0][0]), 4)
+        # Test that senders username
+        self.assertEqual(msgs.values()[0][0][0], 'sender')
+        # Test that message date
+        self.assertEqual(msgs.values()[0][0][1], 
+                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
+        # Test that message time
+
+        self.assertEqual(msgs.values()[0][0][2], 
+                    datetime.datetime.now(utc).strftime("%H:%M"))
+        # Test that message text
+        self.assertEqual(msgs.values()[0][0][3], 'first message')
+
+        # Test getMessages with multiple senders. 
+        before_second_msg = datetime.datetime.now(utc).isoformat()
+        s.register('sender2', 'secret')
+        response = s.sendMessage('sender2', 'secret', 'recipient', 'second message')
+        response = json.loads(response)
+        self.assertEqual(response['status'], SUCCESS)
+
+        um = s.getMessages('recipient', 'secret', since=before_first_msg)
+        um = json.loads(um)
+        self.assertEqual(um['status'], SUCCESS)
+        # Test that messages from two users were returned
+        msgs = um['messages'] 
+        self.assertEqual(len(msgs), 2)
+        # Test that only one message was received from each
+        self.assertEqual(len(msgs.values()[0]), 1)
+        self.assertEqual(len(msgs.values()[1]), 1)
+
+        # Test the properties of the message sent by sender1
+        self.assertEqual(len(msgs.values()[1][0]), 4)
+        self.assertEqual(msgs['sender2'][0][0], 'sender2')
+        self.assertEqual(msgs['sender2'][0][1], 
+                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
+        self.assertEqual(msgs['sender2'][0][2], 
+                    datetime.datetime.now(utc).strftime("%H:%M"))
+        self.assertEqual(msgs['sender2'][0][3], 'second message')
+
+        # Now we make that date later than the first message, so we should only
+        # receive the second one.
+        um = s.getMessages('recipient', 'secret', since=before_second_msg)
+        um = json.loads(um)
+        self.assertEqual(um['status'], SUCCESS)
+        msgs = um['messages'] 
+        self.assertEqual(len(msgs), 1)
+        self.assertEqual(msgs.values()[0][0][0], 'sender2')
+        self.assertEqual(msgs.values()[0][0][1], 
+                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
+        self.assertEqual(msgs.values()[0][0][2], 
+                    datetime.datetime.now(utc).strftime("%H:%M"))
+        self.assertEqual(msgs.values()[0][0][3], 'second message')
 
 
 def test_suite():

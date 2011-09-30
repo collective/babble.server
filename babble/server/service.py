@@ -1,5 +1,6 @@
 import logging
-import datetime
+from datetime import datetime
+from datetime import timedelta
 import simplejson as json
 
 from zope.interface import implements
@@ -52,7 +53,7 @@ class ChatService(Folder):
     def _getCachedUserAccessDict(self):
         """ Implement simple caching to minimise writes
         """
-        now = datetime.datetime.now()
+        now = datetime.now()
         if hasattr(self, '_v_user_access_dict') \
                 and getattr(self, '_v_cache_timeout', now) > now:
             return getattr(self, '_v_user_access_dict')
@@ -64,7 +65,7 @@ class ChatService(Folder):
             setattr(self, '_v_user_access_dict', uad.copy())
 
         # Set a new cache timeout, 30 secs in the future
-        delta = datetime.timedelta(seconds=30)
+        delta = timedelta(seconds=30)
         cache_timeout = now + delta
         setattr(self, '_v_cache_timeout', cache_timeout)
         return uad
@@ -81,8 +82,8 @@ class ChatService(Folder):
         self.temp_folder._setOb('user_access_dict', uad.copy())
 
         # Set the cache
-        now = datetime.datetime.now()
-        delta = datetime.timedelta(seconds=30)
+        now = datetime.now()
+        delta = timedelta(seconds=30)
         cache_timeout = now + delta
         setattr(self, '_v_cache_timeout', cache_timeout)
         setattr(self, '_v_user_access_dict', uad.copy())
@@ -123,9 +124,9 @@ class ChatService(Folder):
             If yes, then we assume the user is online, otherwise not.
         """
         uad = self._getUserAccessDict()
-        last_confirmed_date = uad.get(username, datetime.datetime.min)
-        delta = datetime.timedelta(minutes=1)
-        cutoff_date = datetime.datetime.now() - delta
+        last_confirmed_date = uad.get(username, datetime.min)
+        delta = timedelta(minutes=1)
+        cutoff_date = datetime.now() - delta
         return last_confirmed_date > cutoff_date
 
 
@@ -136,7 +137,7 @@ class ChatService(Folder):
         if username is None:
             return json.dumps({'status': AUTH_FAIL})
 
-        self._setUserAccessDict(**{username:datetime.datetime.now()})
+        self._setUserAccessDict(**{username:datetime.now()})
         return json.dumps({'status': SUCCESS})
 
 
@@ -230,6 +231,26 @@ class ChatService(Folder):
         user = self._getUser(recipient)
         user.addMessage(username, message, username)
         return json.dumps({'status': SUCCESS})
+
+
+    def getMessages(self, username, password, since=datetime.min.isoformat()):
+        """ Get all messages since a certain date/time specified by 'since'.
+            The date format must be iso8601. 
+            
+            To generate a date in this format, use the ISO8601() method for
+            Zope2 DateTime objects and isoformat() for python's builtin
+            datetime types.
+
+            It's very important that timezone information is also included!
+            I.e datetime.now(utc) instead of datetime.now()
+        """
+        if self._authenticate(username, password) is None:
+            log.error('getUnreadMessages: authentication failed')
+            return json.dumps({'status': AUTH_FAIL, 'messages': {}})
+
+        user = self._getUser(username)
+        messages = user.getMessages(since)
+        return json.dumps({'status': SUCCESS, 'messages': messages})
 
 
     def getUnreadMessages(self, username, password, read=True):
