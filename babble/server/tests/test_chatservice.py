@@ -1,4 +1,5 @@
 import datetime
+import re 
 import simplejson as json
 from pytz import utc
 
@@ -18,6 +19,9 @@ zcml.load_config('configure.zcml', package=Products.Five)
 import babble.server
 ztc.installProduct('babble.server')
 zcml.load_config('configure.zcml', package=babble.server)
+
+# Regex to test for ISO8601, i.e: '2011-09-30T15:49:35.417693+00:00'
+RE = re.compile(r'^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}\.\d{6}[+-]\d{2}:\d{2}$')
 
 class TestChatService(ztc.ZopeTestCase):
 
@@ -386,20 +390,24 @@ class TestChatService(ztc.ZopeTestCase):
         um = json.loads(um)
         self.assertEqual(um['status'], SUCCESS)
         # The uncleared messages datastructure looks as follows:
-        # [
-        #   {
-        #    'messages': (('username', '2010/03/08', '15:25', 'message'),), 
-        #    'user': 'username'
-        #    }
-        # ]
-        #
+        # {
+        #     'status': 0,
+        #     'timestamp': '2011-09-30T12:43:49+00:00'
+        #     'messages': {
+        #             'sender': [ ['sender', '2011/09/30', '12:43', 'first message', '2011-09-30T12:43:49+00:00'] ]
+        #           },
+        # }
+
+        # Check that there is a ISO8601 timestamp.
+        self.assertEqual(bool(RE.search(um['timestamp'])), True)
+
         msgs = um['messages'] 
         # Test that messages from only one user was returned
         self.assertEqual(len(msgs), 1)
         # Test that only one message was received from this user
         self.assertEqual(len(msgs.values()[0]), 1)
-        # Test that the message tuple has 4 elements
-        self.assertEqual(len(msgs.values()[0][0]), 4)
+        # Test that the message tuple has 5 elements
+        self.assertEqual(len(msgs.values()[0][0]), 5)
         # Test that senders username
         self.assertEqual(msgs.values()[0][0][0], 'sender')
         # Test that message date
@@ -432,13 +440,17 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(len(msgs.values()[1]), 1)
 
         # Test the properties of the message sent by sender1
-        self.assertEqual(len(msgs.values()[1][0]), 4)
+        self.assertEqual(len(msgs.values()[1][0]), 5)
         self.assertEqual(msgs['sender2'][0][0], 'sender2')
         self.assertEqual(msgs['sender2'][0][1], 
                     datetime.datetime.now(utc).strftime("%Y/%m/%d"))
         self.assertEqual(msgs['sender2'][0][2], 
                     datetime.datetime.now(utc).strftime("%H:%M"))
         self.assertEqual(msgs['sender2'][0][3], 'another msg')
+        self.assertEqual(bool(RE.search(msgs['sender2'][0][4])), True)
+
+        # Check that the global timestamp is the same as the last message's
+        self.assertEqual(um['timestamp'], msgs['sender2'][0][4])
 
         # All the uncleared messages for 'recipient' has now been marked as clear,
         # lets test that no new messages are returned
@@ -479,11 +491,12 @@ class TestChatService(ztc.ZopeTestCase):
         #     'status': 0,
         #     'timestamp': '2011-09-30T12:43:49+00:00'
         #     'messages': {
-        #             'sender': [ ['sender', '2011/09/30', '12:43', 'first message'] ]
+        #             'sender': [ ['sender', '2011/09/30', '12:43', 'first message', '2011-09-30T12:43:49+00:00'] ]
         #           },
         # }
 
         # Check that there is a timestamp.
+        self.assertEqual(bool(RE.search(um['timestamp'])), True)
         self.assertEqual(um['timestamp'] > before_first_msg, True)
 
         msgs = um['messages'] 
@@ -491,8 +504,8 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(len(msgs), 1)
         # Test that only one message was received from this user
         self.assertEqual(len(msgs.values()[0]), 1)
-        # Test that the message tuple has 4 elements
-        self.assertEqual(len(msgs.values()[0][0]), 4)
+        # Test that the message tuple has 5 elements
+        self.assertEqual(len(msgs.values()[0][0]), 5)
         # Test that senders username
         self.assertEqual(msgs.values()[0][0][0], 'sender')
         # Test that message date
@@ -525,22 +538,22 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(len(msgs.values()[1]), 1)
 
         # Test the properties of the message sent by sender1
-        self.assertEqual(len(msgs.values()[1][0]), 4)
+        self.assertEqual(len(msgs.values()[1][0]), 5)
         self.assertEqual(msgs['sender2'][0][0], 'sender2')
         self.assertEqual(msgs['sender2'][0][1], 
                     datetime.datetime.now(utc).strftime("%Y/%m/%d"))
         self.assertEqual(msgs['sender2'][0][2], 
                     datetime.datetime.now(utc).strftime("%H:%M"))
         self.assertEqual(msgs['sender2'][0][3], 'second message')
+        self.assertEqual(bool(RE.search(msgs['sender2'][0][4])), True)
+
+        # Check that the global timestamp is the same as the last message's
+        self.assertEqual(um['timestamp'], msgs['sender2'][0][4])
 
         # Now we make that date later than the first message, so we should only
         # receive the second one.
         um = s.getMessages('recipient', 'secret', since=before_second_msg)
         um = json.loads(um)
-
-        # Check that there is a timestamp.
-        self.assertEqual(um['timestamp'] > before_second_msg, True)
-        self.assertEqual(um['timestamp'] < after_second_msg, True)
 
         self.assertEqual(um['status'], SUCCESS)
         msgs = um['messages'] 
@@ -551,6 +564,15 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(msgs.values()[0][0][2], 
                     datetime.datetime.now(utc).strftime("%H:%M"))
         self.assertEqual(msgs.values()[0][0][3], 'second message')
+        self.assertEqual(bool(RE.search(msgs['sender2'][0][4])), True)
+
+        # Check that there is a ISO8601 timestamp.
+        self.assertEqual(bool(RE.search(um['timestamp'])), True)
+        self.assertEqual(um['timestamp'] > before_second_msg, True)
+        self.assertEqual(um['timestamp'] < after_second_msg, True)
+        # Check that the global timestamp is the same as the last (and only) message's
+        self.assertEqual(um['timestamp'], msgs['sender2'][0][4])
+
 
 
 def test_suite():

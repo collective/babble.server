@@ -4,6 +4,7 @@ from zope.interface import implements
 from Products.BTreeFolder2.BTreeFolder2 import BTreeFolder2
 from messagebox import MessageBox
 from interfaces import IUser
+from config import NULL_DATE
 
 log = logging.getLogger('babble.server/user.py')
 
@@ -70,14 +71,14 @@ class User(BTreeFolder2):
                     if message_time > since:
                         date = m.time.Date()
                         time = m.time.toZone('UTC').TimeMinutes()
-                        mbox_messages.append((m.author, date, time, m.text))
+                        mbox_messages.append((m.author, date, time, m.text, message_time))
 
                 else:
                     message_time = m.time.isoformat()
                     if message_time > since:
                         date = m.time.strftime('%Y/%m/%d')
                         time = m.time.strftime('%H:%M')
-                        mbox_messages.append((m.author, date, time, m.text))
+                        mbox_messages.append((m.author, date, time, m.text, message_time))
 
                 if message_time  > timestamp:
                     timestamp = message_time
@@ -131,6 +132,7 @@ class User(BTreeFolder2):
         else:
             mboxes = self.objectValues()
             
+        timestamp = NULL_DATE
         messages = {}
         for mbox in mboxes:
             mbox_messages = []
@@ -140,13 +142,15 @@ class User(BTreeFolder2):
                         message_time = m.time.ISO8601()
                         date = m.time.Date()
                         time = m.time.toZone('UTC').TimeMinutes()
-                        mbox_messages.append((m.author, date, time, m.text))
-
                     else:
                         message_time = m.time.isoformat()
                         date = m.time.strftime('%Y/%m/%d')
                         time = m.time.strftime('%H:%M')
-                        mbox_messages.append((m.author, date, time, m.text))
+
+                    mbox_messages.append((m.author, date, time, m.text, message_time))
+
+                    if message_time  > timestamp:
+                        timestamp = message_time
 
                     if read is True:
                         m.markAsRead()
@@ -155,5 +159,5 @@ class User(BTreeFolder2):
 
             if mbox_messages:
                 messages[mbox.id] = tuple(mbox_messages)
-        return messages
+        return messages, timestamp
 

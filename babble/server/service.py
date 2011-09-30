@@ -294,8 +294,12 @@ class ChatService(Folder):
             return json.dumps({'status': AUTH_FAIL, 'messages': {}})
 
         user = self._getUser(username)
-        messages = user.getUnclearedMessages(sender, read, clear)
-        return json.dumps({'status': SUCCESS, 'messages': messages})
+        messages, timestamp = user.getUnclearedMessages(sender, read, clear)
+        return json.dumps({
+                    'status': SUCCESS, 
+                    'messages': messages,
+                    'timestamp':timestamp
+                    })
 
 
 InitializeClass(ChatService)
