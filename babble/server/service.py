@@ -234,8 +234,11 @@ class ChatService(Folder):
 
 
     def getMessages(self, username, password, since=datetime.min.isoformat()):
-        """ Get all messages since a certain date/time specified by 'since'.
-            The date format must be iso8601. 
+        """ Return all messages since a certain date, as well as the timestamp 
+            of the newest message.
+
+            The 'since' date format must be iso8601, which is also the format
+            of the returned timestamp.
             
             To generate a date in this format, use the ISO8601() method for
             Zope2 DateTime objects and isoformat() for python's builtin
@@ -249,8 +252,12 @@ class ChatService(Folder):
             return json.dumps({'status': AUTH_FAIL, 'messages': {}})
 
         user = self._getUser(username)
-        messages = user.getMessages(since)
-        return json.dumps({'status': SUCCESS, 'messages': messages})
+        messages, timestamp = user.getMessages(since)
+        return json.dumps({
+                    'status': SUCCESS, 
+                    'messages': messages,
+                    'timestamp':timestamp
+                    })
 
 
     def getUnreadMessages(self, username, password, read=True):

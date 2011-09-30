@@ -1,7 +1,8 @@
+from time import time
+from datetime import datetime
+from pytz import utc
 from zope.interface import implements
 from OFS.SimpleItem import SimpleItem
-from DateTime import DateTime
-
 from interfaces import IMessage
 
 class Message(SimpleItem):
@@ -16,8 +17,8 @@ class Message(SimpleItem):
         self._read = read
         self.author = author
         self.text = message
-        self.time = DateTime().toZone('UTC')
-        self.id = 'message.%s' % self.time.millis()
+        self.time = datetime.now(utc)
+        self.id = 'message.%s' % time()
         
     def unread(self):
         """ Has this message been read? """

@@ -1,6 +1,5 @@
 import logging
-from DateTime import DateTime
-from DateTime.interfaces import SyntaxError
+from DateTime.interfaces import IDateTime
 from zope.interface import implements
 from Products.BTreeFolder2.BTreeFolder2 import BTreeFolder2
 from messagebox import MessageBox
@@ -45,7 +44,9 @@ class User(BTreeFolder2):
 
 
     def getMessages(self, since):
-        """ Return all messages since a certain date. 
+        """ Return all messages since a certain date, and the timestamp of the
+            newest message.
+
             If 'since' is not provided, all messages are returned.
 
             The date format of 'since' must be iso8601. 
@@ -57,18 +58,34 @@ class User(BTreeFolder2):
             It's very important that timezone information is also included!
             I.e datetime.now(utc) instead of datetime.now()
         """
-        since = DateTime(since)
-        mboxes = self.objectValues()
+        timestamp = since
         messages = {}
-        for mbox in mboxes:
+        for mbox in self.objectValues():
             mbox_messages = []
             for m in mbox.objectValues():
-                if m.time > since:
-                    mbox_messages.append((m.author, m.time.Date(), m.time.TimeMinutes(), m.text))
+                # In older versions timestamps were saved as Zope2 DateTime
+                # objs
+                if IDateTime.providedBy(m.time):
+                    message_time = m.time.ISO8601()
+                    if message_time > since:
+                        date = m.time.Date()
+                        time = m.time.toZone('UTC').TimeMinutes()
+                        mbox_messages.append((m.author, date, time, m.text))
+
+                else:
+                    message_time = m.time.isoformat()
+                    if message_time > since:
+                        date = m.time.strftime('%Y/%m/%d')
+                        time = m.time.strftime('%H:%M')
+                        mbox_messages.append((m.author, date, time, m.text))
+
+                if message_time  > timestamp:
+                    timestamp = message_time
 
             if mbox_messages:
                 messages[mbox.id] = tuple(mbox_messages)
-        return messages
+
+        return messages, timestamp
 
 
     def getUnreadMessages(self, read=True):
@@ -81,7 +98,18 @@ class User(BTreeFolder2):
             mbox_messages = []
             for m in mbox.objectValues():
                 if m.unread():
-                    mbox_messages.append((m.author, m.time.Date(), m.time.TimeMinutes(), m.text))
+                    if IDateTime.providedBy(m.time):
+                        message_time = m.time.ISO8601()
+                        date = m.time.Date()
+                        time = m.time.toZone('UTC').TimeMinutes()
+                        mbox_messages.append((m.author, date, time, m.text))
+
+                    else:
+                        message_time = m.time.isoformat()
+                        date = m.time.strftime('%Y/%m/%d')
+                        time = m.time.strftime('%H:%M')
+                        mbox_messages.append((m.author, date, time, m.text))
+
                     if read is True:
                         m.markAsRead()
 
@@ -108,7 +136,18 @@ class User(BTreeFolder2):
             mbox_messages = []
             for m in mbox.objectValues():
                 if m.uncleared():
-                    mbox_messages.append((m.author, m.time.Date(), m.time.TimeMinutes(), m.text))
+                    if IDateTime.providedBy(m.time):
+                        message_time = m.time.ISO8601()
+                        date = m.time.Date()
+                        time = m.time.toZone('UTC').TimeMinutes()
+                        mbox_messages.append((m.author, date, time, m.text))
+
+                    else:
+                        message_time = m.time.isoformat()
+                        date = m.time.strftime('%Y/%m/%d')
+                        time = m.time.strftime('%H:%M')
+                        mbox_messages.append((m.author, date, time, m.text))
+
                     if read is True:
                         m.markAsRead()
                     if clear is True:

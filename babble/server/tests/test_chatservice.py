@@ -475,13 +475,17 @@ class TestChatService(ztc.ZopeTestCase):
         um = json.loads(um)
         self.assertEqual(um['status'], SUCCESS)
         # The uncleared messages datastructure looks as follows:
-        # [
-        #   {
-        #    'messages': (('username', '2010/03/08', '15:25', 'message'),), 
-        #    'user': 'username'
-        #    }
-        # ]
-        #
+        # {
+        #     'status': 0,
+        #     'timestamp': '2011-09-30T12:43:49+00:00'
+        #     'messages': {
+        #             'sender': [ ['sender', '2011/09/30', '12:43', 'first message'] ]
+        #           },
+        # }
+
+        # Check that there is a timestamp.
+        self.assertEqual(um['timestamp'] > before_first_msg, True)
+
         msgs = um['messages'] 
         # Test that messages from only one user was returned
         self.assertEqual(len(msgs), 1)
@@ -495,11 +499,11 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(msgs.values()[0][0][1], 
                     datetime.datetime.now(utc).strftime("%Y/%m/%d"))
         # Test that message time
-
         self.assertEqual(msgs.values()[0][0][2], 
                     datetime.datetime.now(utc).strftime("%H:%M"))
         # Test that message text
         self.assertEqual(msgs.values()[0][0][3], 'first message')
+
 
         # Test getMessages with multiple senders. 
         before_second_msg = datetime.datetime.now(utc).isoformat()
@@ -507,6 +511,8 @@ class TestChatService(ztc.ZopeTestCase):
         response = s.sendMessage('sender2', 'secret', 'recipient', 'second message')
         response = json.loads(response)
         self.assertEqual(response['status'], SUCCESS)
+
+        after_second_msg = datetime.datetime.now(utc).isoformat()
 
         um = s.getMessages('recipient', 'secret', since=before_first_msg)
         um = json.loads(um)
@@ -531,6 +537,11 @@ class TestChatService(ztc.ZopeTestCase):
         # receive the second one.
         um = s.getMessages('recipient', 'secret', since=before_second_msg)
         um = json.loads(um)
+
+        # Check that there is a timestamp.
+        self.assertEqual(um['timestamp'] > before_second_msg, True)
+        self.assertEqual(um['timestamp'] < after_second_msg, True)
+
         self.assertEqual(um['status'], SUCCESS)
         msgs = um['messages'] 
         self.assertEqual(len(msgs), 1)
