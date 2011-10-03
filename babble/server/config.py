@@ -3,5 +3,7 @@ SUCCESS = 0
 AUTH_FAIL = -1
 TIMEOUT = 1
 SERVER_FAULT = 2
-NULL_DATE = '1970-01-01T02:00:00+02:00'
+
+from datetime import datetime
+NULL_DATE = datetime.min.isoformat()
 
