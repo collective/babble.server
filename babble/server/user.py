@@ -41,7 +41,7 @@ class User(BTreeFolder2):
             as a separate var.
         """
         mbox = self._getMessageBox(contact)
-        mbox.addMessage(message, author, read)
+        return mbox.addMessage(message, author, read)
 
 
     def getMessages(self, since):

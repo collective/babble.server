@@ -11,3 +11,4 @@ class MessageBox(BTreeFolder2):
         """ Add a message to the MessageBox """
         message = Message(message, author, read)
         self._setObject(message.id, message)
+        return message.time.isoformat()

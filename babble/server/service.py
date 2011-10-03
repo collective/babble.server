@@ -15,8 +15,7 @@ from Products.BTreeFolder2.BTreeFolder2 import manage_addBTreeFolder
 
 from interfaces import IChatService
 from user import User
-from config import AUTH_FAIL
-from config import SUCCESS
+import config
 
 log = logging.getLogger('babble.server/service.py')
 
@@ -135,10 +134,10 @@ class ChatService(Folder):
             access dict'
         """
         if username is None:
-            return json.dumps({'status': AUTH_FAIL})
+            return json.dumps({'status': config.AUTH_FAIL})
 
         self._setUserAccessDict(**{username:datetime.now()})
-        return json.dumps({'status': SUCCESS})
+        return json.dumps({'status': config.SUCCESS})
 
 
     def register(self, username, password):
@@ -150,20 +149,20 @@ class ChatService(Folder):
 
         users = self._getUsersFolder()
         users._setObject(username, User(username))
-        return json.dumps({'status': SUCCESS})
+        return json.dumps({'status': config.SUCCESS})
 
 
     def isRegistered(self, username):
         """ Check whether the user is registered via acl_users """
         is_registered = self.acl_users.getUser(username) and True or False
-        return json.dumps({'status': SUCCESS, 'is_registered': is_registered})
+        return json.dumps({'status': config.SUCCESS, 'is_registered': is_registered})
 
 
     def setUserPassword(self, username, password):
         """ Set the user's password """
         self.acl_users.userFolderEditUser(
                     username, password, roles=(), domains=())
-        return json.dumps({'status': SUCCESS})
+        return json.dumps({'status': config.SUCCESS})
 
 
     def getOnlineUsers(self):
@@ -172,7 +171,7 @@ class ChatService(Folder):
         """
         uad = self._getCachedUserAccessDict()
         ou = [user for user in uad.keys() if self._isOnline(user)]
-        return json.dumps({'status': SUCCESS, 'online_users': ou})
+        return json.dumps({'status': config.SUCCESS, 'online_users': ou})
 
 
     def setStatus(self, username, password, status):
@@ -188,11 +187,11 @@ class ChatService(Folder):
         """
         if self._authenticate(username, password) is None:
             log.error('setStatus: authentication failed')
-            return json.dumps({'status': AUTH_FAIL, 'messages': []})
+            return json.dumps({'status': config.AUTH_FAIL, 'messages': []})
 
         user = self._getUser(username)
         user.setStatus(status)
-        return json.dumps({'status': SUCCESS})
+        return json.dumps({'status': config.SUCCESS})
 
 
     def getStatus(self, username):
@@ -207,10 +206,10 @@ class ChatService(Folder):
             and being used.
         """
         if not self._isOnline(username):
-            return json.dumps({'status': SUCCESS, 'userstatus': 'offline'})
+            return json.dumps({'status': config.SUCCESS, 'userstatus': 'offline'})
             
         user = self._getUser(username)
-        return json.dumps({'status': SUCCESS, 'userstatus': user.getStatus()})
+        return json.dumps({'status': config.SUCCESS, 'userstatus': user.getStatus()})
 
 
     def sendMessage(self, username, password, recipient, message):
@@ -221,7 +220,7 @@ class ChatService(Folder):
         """
         if self._authenticate(username, password) is None:
             log.error('sendMessage: authentication failed')
-            return json.dumps({'status': AUTH_FAIL})
+            return json.dumps({'status': config.AUTH_FAIL, 'timestamp': config.NULL_DATE})
 
         # Add msg to sender's box, but make sure it's set to read.
         user = self._getUser(username)
@@ -229,8 +228,8 @@ class ChatService(Folder):
 
         # Add msg to recipient's box
         user = self._getUser(recipient)
-        user.addMessage(username, message, username)
-        return json.dumps({'status': SUCCESS})
+        timestamp = user.addMessage(username, message, username)
+        return json.dumps({'status': config.SUCCESS, 'timestamp': timestamp})
 
 
     def getMessages(self, username, password, since=datetime.min.isoformat()):
@@ -249,12 +248,12 @@ class ChatService(Folder):
         """
         if self._authenticate(username, password) is None:
             log.error('getUnreadMessages: authentication failed')
-            return json.dumps({'status': AUTH_FAIL, 'messages': {}})
+            return json.dumps({'status': config.AUTH_FAIL, 'messages': {}})
 
         user = self._getUser(username)
         messages, timestamp = user.getMessages(since)
         return json.dumps({
-                    'status': SUCCESS, 
+                    'status': config.SUCCESS, 
                     'messages': messages,
                     'timestamp':timestamp
                     })
@@ -266,11 +265,11 @@ class ChatService(Folder):
         """
         if self._authenticate(username, password) is None:
             log.error('getUnreadMessages: authentication failed')
-            return json.dumps({'status': AUTH_FAIL, 'messages': {}})
+            return json.dumps({'status': config.AUTH_FAIL, 'messages': {}})
 
         user = self._getUser(username)
         messages = user.getUnreadMessages(read)
-        return json.dumps({'status': SUCCESS, 'messages': messages})
+        return json.dumps({'status': config.SUCCESS, 'messages': messages})
 
 
     def getUnclearedMessages(
@@ -291,12 +290,12 @@ class ChatService(Folder):
         """
         if self._authenticate(username, password) is None:
             log.error('getUnclearedMessages: authentication failed')
-            return json.dumps({'status': AUTH_FAIL, 'messages': {}})
+            return json.dumps({'status': config.AUTH_FAIL, 'messages': {}})
 
         user = self._getUser(username)
         messages, timestamp = user.getUnclearedMessages(sender, read, clear)
         return json.dumps({
-                    'status': SUCCESS, 
+                    'status': config.SUCCESS, 
                     'messages': messages,
                     'timestamp':timestamp
                     })

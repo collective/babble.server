@@ -11,6 +11,7 @@ from Products.TemporaryFolder.TemporaryFolder import SimpleTemporaryContainer
 from Products.Five import zcml
 from babble.server.config import SUCCESS
 from babble.server.config import AUTH_FAIL
+from babble.server import config
 
 import Products.Five
 ztc.installProduct('Five')
@@ -273,10 +274,12 @@ class TestChatService(ztc.ZopeTestCase):
         response = s.sendMessage('sender', 'wrongpass', 'recipient', 'message')
         response = json.loads(response)
         self.assertEqual(response['status'], AUTH_FAIL)
+        self.assertEqual(response['timestamp'], config.NULL_DATE)
 
         response = s.sendMessage('sender', 'secret', 'recipient', 'message')
         response = json.loads(response)
         self.assertEqual(response['status'], SUCCESS)
+        self.assertEqual(bool(RE.search(response['timestamp'])), True)
 
         # test authentication
         um = s.getUnreadMessages('recipient', 'wrongpass', read=False)
