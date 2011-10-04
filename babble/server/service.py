@@ -1,7 +1,8 @@
 import logging
+import simplejson as json
 from datetime import datetime
 from datetime import timedelta
-import simplejson as json
+from pytz import utc
 
 from zope.interface import implements
 
@@ -222,14 +223,16 @@ class ChatService(Folder):
             log.error('sendMessage: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL, 'timestamp': config.NULL_DATE})
 
-        # Add msg to sender's box, but make sure it's set to read.
-        user = self._getUser(username)
-        user.addMessage(recipient, message, username, read=True)
+        timestamp = datetime.now(utc)
 
         # Add msg to recipient's box
         user = self._getUser(recipient)
-        timestamp = user.addMessage(username, message, username)
-        return json.dumps({'status': config.SUCCESS, 'timestamp': timestamp})
+        user.addMessage(username, message, username, timestamp)
+
+        # Add msg to sender's box, but make sure it's set to read.
+        user = self._getUser(username)
+        user.addMessage(recipient, message, username, timestamp, read=True)
+        return json.dumps({'status': config.SUCCESS, 'timestamp': timestamp.isoformat()})
 
 
     def getMessages(self, username, password, since=datetime.min.isoformat()):

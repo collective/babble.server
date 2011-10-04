@@ -1,6 +1,4 @@
 from time import time
-from datetime import datetime
-from pytz import utc
 from zope.interface import implements
 from OFS.SimpleItem import SimpleItem
 from interfaces import IMessage
@@ -10,14 +8,14 @@ class Message(SimpleItem):
 
     implements(IMessage)
 
-    def __init__(self, message, author, read=False):
+    def __init__(self, message, author, timestamp, read=False):
         """ Initialize message 
         """
         self._cleared = False
         self._read = read
         self.author = author
         self.text = message
-        self.time = datetime.now(utc)
+        self.time = timestamp
         self.id = 'message.%s' % time()
         
     def unread(self):

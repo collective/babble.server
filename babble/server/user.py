@@ -33,7 +33,7 @@ class User(BTreeFolder2):
         return self._status
 
 
-    def addMessage(self, contact, message, author, read=False):
+    def addMessage(self, contact, message, author, timestamp, read=False):
         """ Add a message to this user's contact's messagebox
             
             The message author could be either the user or the
@@ -41,7 +41,7 @@ class User(BTreeFolder2):
             as a separate var.
         """
         mbox = self._getMessageBox(contact)
-        return mbox.addMessage(message, author, read)
+        return mbox.addMessage(message, author, timestamp, read)
 
 
     def getMessages(self, since):

@@ -159,7 +159,7 @@ class IUser(Interface):
     def getStatus(self):
         """ Returns the user's status """
 
-    def addMessage(self, contact, message, author, read=False):
+    def addMessage(self, contact, message, author, timestamp, read=False):
         """ Add a message to this user's contact's messagebox
             
             The message author could be either the user or the
@@ -187,7 +187,7 @@ class IUser(Interface):
 class IMessageBox(Interface):
     """ A container for messages """
 
-    def addMessage(self, message, author, read=False):
+    def addMessage(self, message, author, timestamp, read=False):
         """ Add a message to the MessageBox """
 
 
