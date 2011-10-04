@@ -8,24 +8,15 @@ class Message(SimpleItem):
 
     implements(IMessage)
 
-    def __init__(self, message, author, timestamp, read=False):
+    def __init__(self, message, author, timestamp):
         """ Initialize message 
         """
         self._cleared = False
-        self._read = read
         self.author = author
         self.text = message
         self.time = timestamp
         self.id = 'message.%s' % time()
         
-    def unread(self):
-        """ Has this message been read? """
-        return not self._read
-
-    def markAsRead(self):
-        """ Mark this message as being read """
-        self._read = True
-
     def uncleared(self):
         """ Has this message been cleard? """
         return not self._cleared

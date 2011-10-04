@@ -33,7 +33,7 @@ class User(BTreeFolder2):
         return self._status
 
 
-    def addMessage(self, contact, message, author, timestamp, read=False):
+    def addMessage(self, contact, message, author, timestamp):
         """ Add a message to this user's contact's messagebox
             
             The message author could be either the user or the
@@ -41,7 +41,7 @@ class User(BTreeFolder2):
             as a separate var.
         """
         mbox = self._getMessageBox(contact)
-        return mbox.addMessage(message, author, timestamp, read)
+        return mbox.addMessage(message, author, timestamp)
 
 
     def getMessages(self, since):
@@ -89,37 +89,7 @@ class User(BTreeFolder2):
         return messages, timestamp
 
 
-    def getUnreadMessages(self, read=True):
-        """ Return unread messages in a dictionary with the senders as keys.
-            If read=True, then mark them as read.
-        """
-        mboxes = self.objectValues()
-        messages = {}
-        for mbox in mboxes:
-            mbox_messages = []
-            for m in mbox.objectValues():
-                if m.unread():
-                    if IDateTime.providedBy(m.time):
-                        message_time = m.time.ISO8601()
-                        date = m.time.Date()
-                        time = m.time.toZone('UTC').TimeMinutes()
-                        mbox_messages.append((m.author, date, time, m.text))
-
-                    else:
-                        message_time = m.time.isoformat()
-                        date = m.time.strftime('%Y/%m/%d')
-                        time = m.time.strftime('%H:%M')
-                        mbox_messages.append((m.author, date, time, m.text))
-
-                    if read is True:
-                        m.markAsRead()
-
-            if mbox_messages:
-                messages[mbox.id] = tuple(mbox_messages)
-        return messages
-
-
-    def getUnclearedMessages(self, sender=None, read=True, clear=False):
+    def getUnclearedMessages(self, sender=None, clear=False):
         """ Return uncleared messages in list of dicts with senders as keys. 
             If a sender is specified, then return only the messages sent by
             him/her.
@@ -152,8 +122,6 @@ class User(BTreeFolder2):
                     if message_time  > timestamp:
                         timestamp = message_time
 
-                    if read is True:
-                        m.markAsRead()
                     if clear is True:
                         m.markAsCleared()
 

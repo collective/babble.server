@@ -10,7 +10,7 @@ class MessageBox(BTreeFolder2):
     """ A container for messages """
     implements(IMessageBox)
 
-    def addMessage(self, message, author, timestamp, read=False):
+    def addMessage(self, message, author, timestamp):
         """ Add a message to the MessageBox """
-        message = Message(message, author, timestamp, read)
+        message = Message(message, author, timestamp)
         self._setObject(message.id, message)

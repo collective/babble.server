@@ -115,28 +115,16 @@ class IChatService(Interface):
             returns {'status': string}
         """
 
-    def getUnreadMessages(self, username, password, read=True):
-        """ Returns the unread messages for a user. 
-            
-            If sender is none, return all unread messages, otherwise return
-            only the unread messages sent by that specific sender.
-
-            returns {'status': string, 'messages': dict}
-        """
-
     def getUnclearedMessages(
                         self, 
                         username, 
                         password,
                         sender=None, 
-                        read=True,
                         clear=False,
                         ):
         """ Return uncleared messages in list of dicts with senders as keys. 
             If a sender is specified, then return only the messages sent by
             him/her.
-
-            If read=True, then mark the messages as being read.
 
             If clear=True, then mark them as cleared. Messages are usually marked
             as cleared when the chat session is over.
@@ -159,7 +147,7 @@ class IUser(Interface):
     def getStatus(self):
         """ Returns the user's status """
 
-    def addMessage(self, contact, message, author, timestamp, read=False):
+    def addMessage(self, contact, message, author, timestamp):
         """ Add a message to this user's contact's messagebox
             
             The message author could be either the user or the
@@ -167,17 +155,10 @@ class IUser(Interface):
             as a separate var.
         """
 
-    def getUnreadMessages(self, read=True):
-        """ Return unread messages in a dictionary with the senders as keys.
-            If read=True, then mark them as read.
-        """
-
-    def getUnclearedMessages(self, sender=None, read=True, clear=False):
+    def getUnclearedMessages(self, sender=None, clear=False):
         """ Return uncleared messages in list of dicts with senders as keys. 
             If a sender is specified, then return only the messages sent by
             him/her.
-
-            If read=True, then mark the messages as being read.
 
             If clear=True, then mark them as cleared. Messages are usually marked
             as cleared when the chat session is over.
@@ -187,7 +168,7 @@ class IUser(Interface):
 class IMessageBox(Interface):
     """ A container for messages """
 
-    def addMessage(self, message, author, timestamp, read=False):
+    def addMessage(self, message, author, timestamp):
         """ Add a message to the MessageBox """
 
 
@@ -205,13 +186,6 @@ class IMessage(Interface):
     time = schema.Datetime(
         title=u"Timestamp for the message",
         required=True,)
-
-
-    def unread(self):
-        """ Has this message been read? """
-
-    def markAsRead(self):
-        """ Mark this message as being read """
 
     def uncleared(self):
         """ Has this message been cleard? """

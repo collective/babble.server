@@ -1,11 +1,11 @@
 Changelog
 =========
 
-0.3.2 (unreleased)
+1.0 (unreleased)
 ------------------
 
-- Nothing changed yet.
-
+- Major change, backwards incompatible to 0.x. Retrieve messages relative to 
+  timestamps, instead of marking them as read. [jcbrand]
 
 0.3.1 (2011-01-18)
 ------------------
@@ -21,7 +21,7 @@ Changelog
 0.2 (2010-10-18)
 ----------------
 
-- converted message dates to UTC [pilz]
+- Converted message dates to UTC [pilz]
 
 0.1 (2010-05-05)
 ----------------

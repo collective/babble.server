@@ -229,9 +229,9 @@ class ChatService(Folder):
         user = self._getUser(recipient)
         user.addMessage(username, message, username, timestamp)
 
-        # Add msg to sender's box, but make sure it's set to read.
+        # Add msg to sender's box
         user = self._getUser(username)
-        user.addMessage(recipient, message, username, timestamp, read=True)
+        user.addMessage(recipient, message, username, timestamp)
         return json.dumps({'status': config.SUCCESS, 'timestamp': timestamp.isoformat()})
 
 
@@ -250,7 +250,7 @@ class ChatService(Folder):
             I.e datetime.now(utc) instead of datetime.now()
         """
         if self._authenticate(username, password) is None:
-            log.error('getUnreadMessages: authentication failed')
+            log.error('getMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL, 'messages': {}})
 
         user = self._getUser(username)
@@ -261,26 +261,11 @@ class ChatService(Folder):
                     'timestamp':timestamp
                     })
 
-
-    def getUnreadMessages(self, username, password, read=True):
-        """ Returns the unread messages for a user. 
-            If read=True, then mark the messages as being read.  
-        """
-        if self._authenticate(username, password) is None:
-            log.error('getUnreadMessages: authentication failed')
-            return json.dumps({'status': config.AUTH_FAIL, 'messages': {}})
-
-        user = self._getUser(username)
-        messages = user.getUnreadMessages(read)
-        return json.dumps({'status': config.SUCCESS, 'messages': messages})
-
-
     def getUnclearedMessages(
                         self, 
                         username, 
                         password,
                         sender=None, 
-                        read=True,
                         clear=False,
                         ):
         """ Returns the uncleared messages for user. 
@@ -288,7 +273,6 @@ class ChatService(Folder):
             If sender is none, return all uncleared messages, otherwise return
             only the uncleared messages sent by that specific sender.
 
-            If read=True, then mark the messages as being read.
             If clear=True, then mark the messages as being cleared.
         """
         if self._authenticate(username, password) is None:
@@ -300,7 +284,7 @@ class ChatService(Folder):
                         })
 
         user = self._getUser(username)
-        messages, timestamp = user.getUnclearedMessages(sender, read, clear)
+        messages, timestamp = user.getUnclearedMessages(sender, clear)
         return json.dumps({
                     'status': config.SUCCESS, 
                     'messages': messages,

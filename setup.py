@@ -1,13 +1,12 @@
 from setuptools import setup, find_packages
 import os
 
-version = '0.3.2dev'
+version = '1.0b1'
 
 def read(*rnames):
     return open(os.path.join(os.path.dirname(__file__), *rnames)).read()
 
 long_description = (
-
     read('README.txt')
     + '\n' +
     read('docs', 'CONTRIBUTORS.txt')
@@ -15,7 +14,6 @@ long_description = (
     read('docs','CHANGES.txt')
     )
     
-
 setup(
     name='babble.server',
     version=version,
