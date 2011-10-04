@@ -414,6 +414,7 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(len(msgdict['sender']), 1)
         # Test that the message tuple has 5 elements
         self.assertEqual(len(msgdict['sender'][0]), 5)
+        # Test the message's timestamp
         self.assertEqual(bool(RE.search(msgdict['sender'][0][4])), True)
         self.assertEqual(msgdict['sender'][0][4], message_timestamp)
         # Test the senders username
@@ -435,12 +436,12 @@ class TestChatService(ztc.ZopeTestCase):
         response = json.loads(response)
         self.assertEqual(response['status'], SUCCESS)
         self.assertEqual(bool(RE.search(response['timestamp'])), True)
-        message_timestamp = response['timestamp']
+        message2_timestamp = response['timestamp']
 
         um = s.getMessages('recipient', 'secret', config.NULL_DATE)
         um = json.loads(um)
         self.assertEqual(um['status'], SUCCESS)
-        self.assertEqual(um['timestamp'], message_timestamp)
+        self.assertEqual(um['timestamp'], message2_timestamp)
 
         msgdict = um['messages'] 
         # Test that messages from two users were returned
@@ -448,6 +449,11 @@ class TestChatService(ztc.ZopeTestCase):
         # Test that only one message was received from each
         self.assertEqual(len(msgdict.values()[0]), 1)
         self.assertEqual(len(msgdict.values()[1]), 1)
+
+        # Test the messages' timestamps
+        self.assertEqual(bool(RE.search(msgdict['sender'][0][4])), True)
+        self.assertEqual(msgdict['sender'][0][4], message_timestamp)
+        self.assertEqual(msgdict['sender2'][0][4], message2_timestamp)
 
         # Test the properties of the message sent by senders
         self.assertEqual(len(msgdict['sender'][0]), 5)
@@ -459,15 +465,14 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(msgdict['sender2'][0][2], 
                     datetime.datetime.now(utc).strftime("%H:%M"))
         self.assertEqual(msgdict['sender2'][0][3], 'another msg')
-        self.assertEqual(msgdict['sender2'][0][4], message_timestamp)
 
         # Test for messages sent after message_timestamp. This should not
         # return messages.
-        um = s.getMessages('recipient', 'secret', message_timestamp)
+        um = s.getMessages('recipient', 'secret', message2_timestamp)
         um = json.loads(um)
         self.assertEqual(um['status'], SUCCESS)
         self.assertEqual(um['messages'], {})
-        self.assertEqual(um['timestamp'], message_timestamp)
+        self.assertEqual(um['timestamp'], message2_timestamp)
 
 
     def test_message_clearing(self):
@@ -484,6 +489,8 @@ class TestChatService(ztc.ZopeTestCase):
         response = s.sendMessage('sender', 'secret', 'recipient', 'message')
         response = json.loads(response)
         self.assertEqual(response['status'], SUCCESS)
+        self.assertEqual(bool(RE.search(response['timestamp'])), True)
+        message_timestamp = response['timestamp']
 
         # Test authentication
         um = s.getUnclearedMessages(
@@ -494,6 +501,7 @@ class TestChatService(ztc.ZopeTestCase):
         um = json.loads(um)
         self.assertEqual(um['status'], AUTH_FAIL)
         self.assertEqual(um['messages'], {})
+        self.assertEqual(um['timestamp'], config.NULL_DATE)
 
         um = s.getUnclearedMessages(
                             'recipient', 
@@ -502,6 +510,9 @@ class TestChatService(ztc.ZopeTestCase):
                             clear=False)
         um = json.loads(um)
         self.assertEqual(um['status'], SUCCESS)
+        self.assertEqual(um.keys(), ['status', 'timestamp', 'messages'])
+        self.assertEqual(um['timestamp'], message_timestamp)
+
         # The uncleared messages datastructure looks as follows:
         # {
         #     'status': 0,
@@ -521,13 +532,15 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(len(msgs.values()[0]), 1)
         # Test that the message tuple has 5 elements
         self.assertEqual(len(msgs.values()[0][0]), 5)
+        # Test the message's timestamp
+        self.assertEqual(bool(RE.search(msgs.values()[0][0][4])), True)
+        self.assertEqual(msgs.values()[0][0][4], message_timestamp)
         # Test that senders username
         self.assertEqual(msgs.values()[0][0][0], 'sender')
         # Test that message date
         self.assertEqual(msgs.values()[0][0][1], 
                     datetime.datetime.now(utc).strftime("%Y/%m/%d"))
         # Test that message time
-
         self.assertEqual(msgs.values()[0][0][2], 
                     datetime.datetime.now(utc).strftime("%H:%M"))
         # Test that message text
@@ -541,6 +554,8 @@ class TestChatService(ztc.ZopeTestCase):
         response = s.sendMessage('sender2', 'secret', 'recipient', 'another msg')
         response = json.loads(response)
         self.assertEqual(response['status'], SUCCESS)
+        self.assertEqual(bool(RE.search(response['timestamp'])), True)
+        message2_timestamp = response['timestamp']
 
         um = s.getUnclearedMessages('recipient', 'secret', clear=True)
         um = json.loads(um)
@@ -551,6 +566,10 @@ class TestChatService(ztc.ZopeTestCase):
         # Test that only one message was received from each
         self.assertEqual(len(msgs.values()[0]), 1)
         self.assertEqual(len(msgs.values()[1]), 1)
+
+        # Test the messages' timestamps
+        self.assertEqual(msgs['sender'][0][4], message_timestamp)
+        self.assertEqual(msgs['sender2'][0][4], message2_timestamp)
 
         # Test the properties of the message sent by sender1
         self.assertEqual(len(msgs.values()[1][0]), 5)
@@ -571,6 +590,7 @@ class TestChatService(ztc.ZopeTestCase):
         um = json.loads(um)
         self.assertEqual(um['status'], SUCCESS)
         self.assertEqual(um['messages'], {})
+        self.assertEqual(um['timestamp'], config.NULL_DATE)
 
 
     def testMessageFetching(self):

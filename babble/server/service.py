@@ -290,7 +290,11 @@ class ChatService(Folder):
         """
         if self._authenticate(username, password) is None:
             log.error('getUnclearedMessages: authentication failed')
-            return json.dumps({'status': config.AUTH_FAIL, 'messages': {}})
+            return json.dumps({
+                        'status': config.AUTH_FAIL, 
+                        'timestamp': config.NULL_DATE,
+                        'messages': {}
+                        })
 
         user = self._getUser(username)
         messages, timestamp = user.getUnclearedMessages(sender, read, clear)
