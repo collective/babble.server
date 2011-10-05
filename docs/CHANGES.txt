@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.0 (unreleased)
+1.0b1 (2011-10-05)
 ------------------
 
 - Major change, backwards incompatible to 0.x. Retrieve messages relative to 
