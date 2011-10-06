@@ -235,7 +235,7 @@ class ChatService(Folder):
         return json.dumps({'status': config.SUCCESS, 'timestamp': timestamp.isoformat()})
 
 
-    def getMessages(self, username, password, since=datetime.min.isoformat()):
+    def getMessages(self, username, password, since):
         """ Return all messages since a certain date, as well as the timestamp 
             of the newest message.
 
@@ -251,7 +251,19 @@ class ChatService(Folder):
         """
         if self._authenticate(username, password) is None:
             log.error('getMessages: authentication failed')
-            return json.dumps({'status': config.AUTH_FAIL, 'messages': {}})
+            return json.dumps({
+                        'status': config.AUTH_FAIL, 
+                        'timestamp': config.NULL_DATE,
+                        'messages': {}
+                        })
+
+        if not config.VALID_DATE_REGEX.search(since):
+            log.error('getMessages: invalid date format')
+            return json.dumps({
+                        'status': config.SERVER_FAULT, 
+                        'timestamp': config.NULL_DATE,
+                        'messages': {}
+                        })
 
         user = self._getUser(username)
         messages, timestamp = user.getMessages(since)
@@ -265,10 +277,14 @@ class ChatService(Folder):
                         self, 
                         username, 
                         password,
-                        sender=None, 
+                        sender, 
+                        since=datetime.min.isoformat(),
                         clear=False,
                         ):
-        """ Returns the uncleared messages for user. 
+        """ Returns the uncleared messages since a certain date.
+
+            The 'since' date format must be iso8601, which is also the format
+            of the returned timestamp.
             
             If sender is none, return all uncleared messages, otherwise return
             only the uncleared messages sent by that specific sender.
@@ -283,8 +299,16 @@ class ChatService(Folder):
                         'messages': {}
                         })
 
+        if not config.VALID_DATE_REGEX.search(since):
+            log.error('getMessages: invalid date format')
+            return json.dumps({
+                        'status': config.SERVER_FAULT, 
+                        'timestamp': config.NULL_DATE,
+                        'messages': {}
+                        })
+
         user = self._getUser(username)
-        messages, timestamp = user.getUnclearedMessages(sender, clear)
+        messages, timestamp = user.getUnclearedMessages(sender, since, clear)
         return json.dumps({
                     'status': config.SUCCESS, 
                     'messages': messages,

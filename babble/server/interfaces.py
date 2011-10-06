@@ -119,17 +119,19 @@ class IChatService(Interface):
                         self, 
                         username, 
                         password,
-                        sender=None, 
+                        sender, 
+                        since,
                         clear=False,
                         ):
-        """ Return uncleared messages in list of dicts with senders as keys. 
-            If a sender is specified, then return only the messages sent by
-            him/her.
+        """ Returns the uncleared messages since a certain date.
 
-            If clear=True, then mark them as cleared. Messages are usually marked
-            as cleared when the chat session is over.
+            The 'since' date format must be iso8601, which is also the format
+            of the returned timestamp.
+            
+            If sender is none, return all uncleared messages, otherwise return
+            only the uncleared messages sent by that specific sender.
 
-            returns {'status': string, 'messages': list}
+            If clear=True, then mark the messages as being cleared.
         """
 
 
@@ -155,8 +157,26 @@ class IUser(Interface):
             as a separate var.
         """
 
-    def getUnclearedMessages(self, sender=None, clear=False):
+    def getMessages(self, username, password, since):
+        """ Return all messages since a certain date, as well as the timestamp 
+            of the newest message.
+
+            The 'since' date format must be iso8601, which is also the format
+            of the returned timestamp.
+            
+            To generate a date in this format, use the ISO8601() method for
+            Zope2 DateTime objects and isoformat() for python's builtin
+            datetime types.
+
+            It's very important that timezone information is also included!
+            I.e datetime.now(utc) instead of datetime.now()
+        """
+
+    def getUnclearedMessages(self, sender, since, clear=False):
         """ Return uncleared messages in list of dicts with senders as keys. 
+
+            The date format of 'since' must be iso8601. 
+
             If a sender is specified, then return only the messages sent by
             him/her.
 

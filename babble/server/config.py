@@ -7,3 +7,5 @@ SERVER_FAULT = 2
 from datetime import datetime
 NULL_DATE = datetime.min.isoformat()
 
+import re
+VALID_DATE_REGEX = re.compile(r'^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{6}[+-]\d{2}:\d{2})?$')
