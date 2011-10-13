@@ -301,33 +301,15 @@ class TestChatService(ztc.ZopeTestCase):
         response = json.loads(response)
         self.assertEqual(response['status'], config.AUTH_FAIL)
 
+        # test valid message sending
         response = s.sendMessage('sender', 'secret', 'recipient', 'This is the message')
         response = json.loads(response)
         self.assertEqual(response['status'], config.SUCCESS)
         self.assertTrue(bool(config.VALID_DATE_REGEX.search(response['last_msg_date'])))
         message_timestamp = response['last_msg_date']
 
-        um = s.getMessages(
-                        'recipient', 
-                        'secret', 
-                        None, 
-                        config.NULL_DATE,
-                        None,
-                        False,
-                        False )
-        um = json.loads(um)
+        um = json.loads(s.getMessages( 'recipient', 'secret', None, config.NULL_DATE, None, False, False ))
         self.assertEqual(um['status'], config.SUCCESS)
-
-        db  = s.getMessages(
-                        'recipient', 
-                        'secret', 
-                        None, 
-                        config.NULL_DATE,
-                        None,
-                        False,
-                        False )
-        db = json.loads(db)
-        self.assertEqual(um, db)
         # The returned datastructure looks as follows:
         # {
         #   'messages': {
@@ -353,6 +335,15 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(msgdict['sender'][0][0], 'sender')
         # Test that message text
         self.assertEqual(msgdict['sender'][0][1], 'This is the message')
+
+        db = json.loads(s.getMessages( 'recipient', 'secret', None, None, None, False, False ))
+
+        # Test exact 'since' and 'until' dates.
+        db = json.loads(s.getMessages( 'recipient', 'secret', None, um['last_msg_date'], None, False, False ))
+        self.assertEqual(db['messages'], {})
+
+        db = json.loads(s.getMessages( 'recipient', 'secret', None, None, um['last_msg_date'], False, False ))
+        self.assertEqual(db['messages'], {})
 
         # Test getMessages with multiple senders. We didn't mark the
         # previous sender's messages as 'read', so they should be returned
@@ -704,6 +695,18 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(um['status'], config.SUCCESS)
         self.assertEqual(len(um['messages']['sender']), 3)
         self.assertEqual(len(um['messages']['sender2']), 2)
+
+        um = s.getMessages(
+                        'recipient', 
+                        'secret', 
+                        None,
+                        None,
+                        um['last_msg_date'],
+                        None,
+                        False )
+        um = json.loads(um)
+        self.assertEqual(um['status'], config.SUCCESS)
+
 
 
 def test_suite():

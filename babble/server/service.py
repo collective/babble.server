@@ -303,7 +303,7 @@ class ChatService(Folder):
                         'errmsg': 'Invalid parameter value', })
 
         if since is None:
-            since = datetime.min.isoformat()
+            since = config.NULL_DATE 
         elif not config.VALID_DATE_REGEX.search(since):
             return json.dumps({
                         'status': config.ERROR, 
@@ -333,8 +333,11 @@ class ChatService(Folder):
             for mbox in conversation.values():
                 for i in mbox.objectIds():
                     i = float(i)
-                    mdate = datetime.utcfromtimestamp(i).isoformat()
-                    if mdate < since or mdate > until:
+                    mdate = datetime.utcfromtimestamp(i).replace(tzinfo=utc).isoformat()
+                    # We test for smaller/bigger and equal, because the dates
+                    # passed in will usually be ones from previous getMessages
+                    # calls.
+                    if mdate <= since or mdate >= until:
                         continue
 
                     m = mbox._getOb('%f' % i)

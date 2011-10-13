@@ -16,6 +16,7 @@ class Message(SimpleItem):
         self._cleared = False
         self.author = author
         self.text = message
-        self.time = datetime.now(utc).isoformat()
-        self.id = '%f' % time.time()
 
+        ts = time.time()
+        self.id = '%f' % ts
+        self.time = datetime.utcfromtimestamp(ts).replace(tzinfo=utc).isoformat()
