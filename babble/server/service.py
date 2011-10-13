@@ -295,26 +295,27 @@ class ChatService(Folder):
 
             mark_cleared: True/False
         """
-        if since is None:
-            since = datetime.min.isoformat(),
-        if until is None:
-            until = datetime.now(utc).isoformat()
 
         if mark_cleared not in [None, True, False] or \
                     cleared not in [None, True, False]:
-
             return json.dumps({
                         'status': config.ERROR, 
-                        'errmsg': 'Invalid parameter value',
-                        })
+                        'errmsg': 'Invalid parameter value', })
 
-        if not config.VALID_DATE_REGEX.search(since):
-            log.error('getMessages: invalid date format')
+        if since is None:
+            since = datetime.min.isoformat()
+        elif not config.VALID_DATE_REGEX.search(since):
             return json.dumps({
                         'status': config.ERROR, 
-                        'errmsg': 'Invalid date format',
-                        })
-            
+                        'errmsg': 'Invalid date format', })
+
+        if until is None:
+            until = datetime.now(utc).isoformat()
+        elif not config.VALID_DATE_REGEX.search(until):
+            return json.dumps({
+                        'status': config.ERROR, 
+                        'errmsg': 'Invalid date format', })
+
         if self._authenticate(username, password) is None:
             log.error('getMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})

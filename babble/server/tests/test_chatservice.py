@@ -572,7 +572,7 @@ class TestChatService(ztc.ZopeTestCase):
 
         before_first_msg = datetime.datetime.now(utc).isoformat()
 
-        response = s.sendMessage('sender', 'secret', 'recipient', 'xxx message')
+        response = s.sendMessage('sender', 'secret', 'recipient', 'first message')
         response = json.loads(response)
         self.assertEqual(response['status'], config.SUCCESS)
 
@@ -613,7 +613,7 @@ class TestChatService(ztc.ZopeTestCase):
         # Test that senders username
         self.assertEqual(msgs.values()[0][0][0], 'sender')
         # Test that message text
-        self.assertEqual(msgs.values()[0][0][1], 'xxx message')
+        self.assertEqual(msgs.values()[0][0][1], 'first message')
 
 
         # Test getMessages with multiple senders. 
@@ -675,6 +675,35 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(um['last_msg_date'] < after_second_msg, True)
         # Check that the global last_msg_date is the same as the last (and only) message's
         self.assertEqual(um['last_msg_date'], msgs['sender2'][0][2])
+
+        um = s.getMessages(
+                        'recipient', 
+                        'secret', 
+                        None, 
+                        before_first_msg, 
+                        before_second_msg,
+                        None,
+                        False )
+        um = json.loads(um)
+        self.assertEqual(um['status'], config.SUCCESS)
+        msgs = um['messages'] 
+        self.assertEqual(len(msgs), 1)
+        self.assertEqual(msgs.values()[0][0][0], 'sender')
+        self.assertEqual(msgs.values()[0][0][1], 'first message')
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(msgs['sender'][0][2])))
+
+        um = s.getMessages(
+                        'recipient', 
+                        'secret', 
+                        None,
+                        None,
+                        before_second_msg,
+                        None,
+                        False )
+        um = json.loads(um)
+        self.assertEqual(um['status'], config.SUCCESS)
+        self.assertEqual(len(um['messages']['sender']), 3)
+        self.assertEqual(len(um['messages']['sender2']), 2)
 
 
 def test_suite():
