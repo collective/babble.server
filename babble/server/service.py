@@ -2,6 +2,7 @@ import logging
 import simplejson as json
 from datetime import datetime
 from datetime import timedelta
+from pytz import utc
 
 from zope.interface import implements
 
@@ -276,27 +277,28 @@ class ChatService(Folder):
                 })
 
 
-    def getMessages(self, 
-                    username, 
-                    password,
-                    sender, 
-                    since=datetime.min.isoformat(),
-                    cleared=None,
-                    mark_cleared=False,
-                    ):
-        """ Returns the uncleared messages since a certain date.
+    def getMessages(self, username, password, sender, since, until, cleared, mark_cleared):
+        """ Returns messages within a certain date range
 
-            The 'since' date format must be iso8601, which is also the format
-            of the returned last_msg_date.
-            
-            If sender is none, return all uncleared messages, otherwise return
-            only the uncleared messages sent by that specific sender.
+            Parameter values:
+            -----------------
+            sender: None or string
+                If None, return from all senders.
 
-            cleared must be in [None, True, False]
-            If True, return only cleared messages.
-            If False, return only uncleared once.
-            Else, return all of them.
+            since: iso8601 date string or None
+            until: iso8601 date string or None
+
+            cleared: None/True/False
+                If True, return only cleared messages.
+                If False, return only uncleared once.
+                Else, return all of them.
+
+            mark_cleared: True/False
         """
+        if since is None:
+            since = datetime.min.isoformat(),
+        if until is None:
+            until = datetime.now(utc).isoformat()
 
         if mark_cleared not in [None, True, False] or \
                     cleared not in [None, True, False]:
@@ -330,7 +332,8 @@ class ChatService(Folder):
             for mbox in conversation.values():
                 for i in mbox.objectIds():
                     i = float(i)
-                    if datetime.utcfromtimestamp(i).isoformat() < since:
+                    mdate = datetime.utcfromtimestamp(i).isoformat()
+                    if mdate < since or mdate > until:
                         continue
 
                     m = mbox._getOb('%f' % i)
