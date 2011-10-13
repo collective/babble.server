@@ -192,6 +192,13 @@ class IMessageBox(Interface):
         """ Add a message to the MessageBox """
 
 
+class IConversation(Interface):
+    """ A conversation between two or more users """
+
+    def addMessage(self, message, author, timestamp):
+        """ Add a message to the Conversation """
+
+
 class IMessage(Interface):
     """ A message in a message box """
 

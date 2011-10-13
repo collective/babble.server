@@ -1,4 +1,6 @@
-from time import time
+import time
+from pytz import utc
+from datetime import datetime
 from zope.interface import implements
 from OFS.SimpleItem import SimpleItem
 from interfaces import IMessage
@@ -8,19 +10,12 @@ class Message(SimpleItem):
 
     implements(IMessage)
 
-    def __init__(self, message, author, timestamp):
+    def __init__(self, message, author):
         """ Initialize message 
         """
         self._cleared = False
         self.author = author
         self.text = message
-        self.time = timestamp
-        self.id = 'message.%s' % time()
-        
-    def uncleared(self):
-        """ Has this message been cleard? """
-        return not self._cleared
+        self.time = datetime.now(utc).isoformat()
+        self.id = '%f' % time.time()
 
-    def markAsCleared(self):
-        """ Mark this message as cleared """
-        self._cleared= True

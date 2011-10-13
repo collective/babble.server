@@ -17,6 +17,7 @@ class ChatServiceAddView:
 
             aq_base(obj).manage_addUserFolder()
             manage_addBTreeFolder(aq_base(obj), 'users', 'Users')
+            manage_addBTreeFolder(aq_base(obj), 'conversations', 'Conversations')
 
             obj.manage_permission(UseChatService,
                 roles=('Authenticated',), acquire=1)

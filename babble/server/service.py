@@ -2,7 +2,6 @@ import logging
 import simplejson as json
 from datetime import datetime
 from datetime import timedelta
-from pytz import utc
 
 from zope.interface import implements
 
@@ -16,6 +15,7 @@ from Products.BTreeFolder2.BTreeFolder2 import manage_addBTreeFolder
 
 from interfaces import IChatService
 from user import User
+from conversation import Conversation
 import config
 
 log = logging.getLogger('babble.server/service.py')
@@ -108,6 +108,39 @@ class ChatService(Folder):
         if not users.hasObject(username):
             raise NotFound("%s is not registered." % username)
         return users._getOb(username)
+        
+
+    def _getConversationsFolder(self):
+        """ The 'Conversations' folder is a BTreeFolder that contains
+            IConversation objects.
+
+            See babble.server.interfaces.py:IConversation
+        """
+        if not self.hasObject('conversations'):
+            log.warn("The chatservice 'Conversations' folder did not exist, "
+                    "and has been automatically recreated.")
+            manage_addBTreeFolder(self, 'conversations', 'Conversations')
+
+        return self._getOb('conversations')
+
+
+    def _getConversation(self, user1, user2):
+        """ """
+        folder = self._getConversationsFolder()
+        ord1 = ''.join([str(ord(c)) for c in user1])
+        ord2 = ''.join([str(ord(c)) for c in user2])
+        id = '-'.join(sorted([ord1, ord2]))
+
+        if not folder.hasObject(id):
+            folder._setObject(id, Conversation(id, user1, user2))
+        return folder._getOb(id)
+
+
+    def _getConversationsFor(self, username):
+        """ """
+        f = self._getConversationsFolder()
+        username  = ''.join([str(ord(c)) for c in username])
+        return [f._getOb(i) for i in f.objectIds() if username in i.split('-')]
 
 
     def _authenticate(self, username, password):
@@ -135,7 +168,10 @@ class ChatService(Folder):
             access dict'
         """
         if username is None:
-            return json.dumps({'status': config.AUTH_FAIL})
+            return json.dumps({
+                            'status': config.ERROR,
+                            'errmsg': 'Username may not be None',
+                            })
 
         self._setUserAccessDict(**{username:datetime.now()})
         return json.dumps({'status': config.SUCCESS})
@@ -145,6 +181,12 @@ class ChatService(Folder):
         """ Register a user with the babble.server's acl_users and create a
             'User' object in the 'Users' folder
         """
+        if ' ' in username:
+            return json.dumps({
+                            'status': config.ERROR,
+                            'errmsg': 'Spaces not allowed in usernames',
+                            })
+            
         self.acl_users.userFolderAddUser(
                         username, password, roles=(), domains=())
 
@@ -188,7 +230,7 @@ class ChatService(Folder):
         """
         if self._authenticate(username, password) is None:
             log.error('setStatus: authentication failed')
-            return json.dumps({'status': config.AUTH_FAIL, 'messages': []})
+            return json.dumps({'status': config.AUTH_FAIL})
 
         user = self._getUser(username)
         user.setStatus(status)
@@ -221,100 +263,99 @@ class ChatService(Folder):
         """
         if self._authenticate(username, password) is None:
             log.error('sendMessage: authentication failed')
-            return json.dumps({'status': config.AUTH_FAIL, 'timestamp': config.NULL_DATE})
-
-        timestamp = datetime.now(utc)
-
-        # Add msg to recipient's box
-        user = self._getUser(recipient)
-        user.addMessage(username, message, username, timestamp)
-
-        # Add msg to sender's box
-        user = self._getUser(username)
-        user.addMessage(recipient, message, username, timestamp)
-        return json.dumps({'status': config.SUCCESS, 'timestamp': timestamp.isoformat()})
-
-
-    def getMessages(self, username, password, since):
-        """ Return all messages since a certain date, as well as the timestamp 
-            of the newest message.
-
-            The 'since' date format must be iso8601, which is also the format
-            of the returned timestamp.
-            
-            To generate a date in this format, use the ISO8601() method for
-            Zope2 DateTime objects and isoformat() for python's builtin
-            datetime types.
-
-            It's very important that timezone information is also included!
-            I.e datetime.now(utc) instead of datetime.now()
-        """
-        if self._authenticate(username, password) is None:
-            log.error('getMessages: authentication failed')
             return json.dumps({
-                        'status': config.AUTH_FAIL, 
-                        'timestamp': config.NULL_DATE,
-                        'messages': {}
-                        })
-
-        if not config.VALID_DATE_REGEX.search(since):
-            log.error('getMessages: invalid date format')
-            return json.dumps({
-                        'status': config.SERVER_FAULT, 
-                        'timestamp': config.NULL_DATE,
-                        'messages': {}
-                        })
-
-        user = self._getUser(username)
-        messages, timestamp = user.getMessages(since)
-        return json.dumps({
-                    'status': config.SUCCESS, 
-                    'messages': messages,
-                    'timestamp':timestamp
+                    'status': config.AUTH_FAIL, 
+                    'last_msg_date': config.NULL_DATE
                     })
 
-    def getUnclearedMessages(
-                        self, 
-                        username, 
-                        password,
-                        sender, 
-                        since=datetime.min.isoformat(),
-                        clear=False,
-                        ):
+        conversation = self._getConversation(username, recipient)
+        last_msg_date = conversation.addMessage(message, username).time
+        return json.dumps({
+                'status': config.SUCCESS, 
+                'last_msg_date': last_msg_date
+                })
+
+
+    def getMessages(self, 
+                    username, 
+                    password,
+                    sender, 
+                    since=datetime.min.isoformat(),
+                    cleared_status=None,
+                    mark_cleared=False,
+                    ):
         """ Returns the uncleared messages since a certain date.
 
             The 'since' date format must be iso8601, which is also the format
-            of the returned timestamp.
+            of the returned last_msg_date.
             
             If sender is none, return all uncleared messages, otherwise return
             only the uncleared messages sent by that specific sender.
 
-            If clear=True, then mark the messages as being cleared.
+            cleared_status must be in [None, True, False]
+            If True, return only cleared messages.
+            If False, return only uncleared once.
+            Else, return all of them.
         """
-        if self._authenticate(username, password) is None:
-            log.error('getUnclearedMessages: authentication failed')
+
+        if mark_cleared not in [None, True, False] or \
+                    cleared_status not in [None, True, False]:
+
             return json.dumps({
-                        'status': config.AUTH_FAIL, 
-                        'timestamp': config.NULL_DATE,
-                        'messages': {}
+                        'status': config.ERROR, 
+                        'errmsg': 'Invalid parameter value',
                         })
 
         if not config.VALID_DATE_REGEX.search(since):
             log.error('getMessages: invalid date format')
             return json.dumps({
-                        'status': config.SERVER_FAULT, 
-                        'timestamp': config.NULL_DATE,
-                        'messages': {}
+                        'status': config.ERROR, 
+                        'errmsg': 'Invalid date format',
                         })
+            
+        if self._authenticate(username, password) is None:
+            log.error('getMessages: authentication failed')
+            return json.dumps({'status': config.AUTH_FAIL})
 
-        user = self._getUser(username)
-        messages, timestamp = user.getUnclearedMessages(sender, since, clear)
+        if sender:
+            cs = [self._getConversation(username, sender)]
+        else:
+            cs = self._getConversationsFor(username)
+
+        last_msg_date = config.NULL_DATE
+        messages = {}
+        for conversation in cs:
+            msg_tuples = []
+            conv_messages = []
+            for mbox in conversation.values():
+                for i in mbox.objectIds():
+                    i = float(i)
+                    if datetime.utcfromtimestamp(i).isoformat() < since:
+                        continue
+
+                    m = mbox._getOb('%f' % i)
+                    msg_tuples.append((i, m))
+
+            msg_tuples.sort()
+            for i, m in msg_tuples:
+                if cleared_status is not None and m._cleared != cleared_status:
+                    continue
+
+                conv_messages.append((m.author, m.text, m.time))
+
+                if m.time > last_msg_date:
+                    last_msg_date = m.time 
+
+                if mark_cleared: m._cleared = True
+
+            if conv_messages:
+                messages[conversation.partner[username]] = tuple(conv_messages)
+
         return json.dumps({
                     'status': config.SUCCESS, 
                     'messages': messages,
-                    'timestamp':timestamp
+                    'last_msg_date':last_msg_date
                     })
-
 
 InitializeClass(ChatService)
 

@@ -1,5 +1,4 @@
 import datetime
-import re 
 import simplejson as json
 from pytz import utc
 
@@ -20,7 +19,7 @@ ztc.installProduct('babble.server')
 zcml.load_config('configure.zcml', package=babble.server)
 
 # Regex to test for ISO8601, i.e: '2011-09-30T15:49:35.417693+00:00'
-RE = re.compile(r'^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}\.\d{6}[+-]\d{2}:\d{2}$')
+# RE = re.compile(r'^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}\.\d{6}[+-]\d{2}:\d{2}$')
 
 class TestChatService(ztc.ZopeTestCase):
 
@@ -143,6 +142,10 @@ class TestChatService(ztc.ZopeTestCase):
             'setUserPassword'  methods.
         """
         s = self.chatservice
+        r = s.register('user name', 'password')
+        r = json.loads(r)
+        self.assertEquals(r['status'], config.ERROR)
+
         s.register('username', 'password')
         self.assertEqual('username', s._getUser('username').id)
 
@@ -178,6 +181,10 @@ class TestChatService(ztc.ZopeTestCase):
         u = 'username'
         s.register(u, u)
         self.assertEqual(s._isOnline(u), False)
+
+        r = s.confirmAsOnline(None)
+        r = json.loads(r)
+        self.assertEquals(r['status'], config.ERROR)
 
         # Test that a user entry was made into the 'user access dict'
         s.confirmAsOnline(u)
@@ -263,7 +270,14 @@ class TestChatService(ztc.ZopeTestCase):
         s.register('sender', 'secret')
         s.register('recipient', 'secret')
 
-        um = s.getMessages('recipient', 'secret', config.NULL_DATE)
+        # Delete the Conversations folder to check that it gets recreated.
+        s.manage_delObjects(['conversations'])
+        um = s.getMessages('recipient', 'secret', None, config.NULL_DATE)
+        um = json.loads(um)
+        self.assertEqual(um['status'], config.SUCCESS)
+        self.assertTrue(hasattr(s, 'conversations'))
+
+        um = s.getMessages('recipient', 'secret', None, config.NULL_DATE)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
         self.assertEqual(um['messages'], {})
@@ -272,25 +286,18 @@ class TestChatService(ztc.ZopeTestCase):
         response = s.sendMessage('sender', 'wrongpass', 'recipient', 'This is the message')
         response = json.loads(response)
         self.assertEqual(response['status'], config.AUTH_FAIL)
-        self.assertEqual(response['timestamp'], config.NULL_DATE)
 
         response = s.sendMessage('sender', 'secret', 'recipient', 'This is the message')
         response = json.loads(response)
         self.assertEqual(response['status'], config.SUCCESS)
-        self.assertEqual(bool(RE.search(response['timestamp'])), True)
-        message_timestamp = response['timestamp']
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(response['last_msg_date'])))
+        message_timestamp = response['last_msg_date']
 
-        # test authentication
-        um = s.getMessages('recipient', 'wrongpass', config.NULL_DATE)
-        um = json.loads(um)
-        self.assertEqual(um['status'], config.AUTH_FAIL)
-        self.assertEqual(um['messages'], {})
-
-        um = s.getMessages('recipient', 'secret', config.NULL_DATE)
+        um = s.getMessages('recipient', 'secret', None, config.NULL_DATE)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
 
-        db = s.getMessages('recipient', 'secret', config.NULL_DATE)
+        db = s.getMessages('recipient', 'secret', None, config.NULL_DATE)
         db = json.loads(db)
         self.assertEqual(um, db)
         # The returned datastructure looks as follows:
@@ -299,31 +306,25 @@ class TestChatService(ztc.ZopeTestCase):
         #       'sender': [ ['sender', '2011/10/04', '08:41', 'message', '2011-10-04T08:41:31.533527+00:00'] ]
         #     }, 
         #   'status': 0, 
-        #   'timestamp': '2011-10-04T08:41:31.533527+00:00'
+        #   'last_msg_date': '2011-10-04T08:41:31.533527+00:00'
         # }
-        self.assertEqual(um.keys(), ['status', 'timestamp', 'messages'])
-        self.assertEqual(um['timestamp'], message_timestamp)
+        self.assertEqual(um.keys(), ['status', 'messages', 'last_msg_date', ])
+        self.assertEqual(um['last_msg_date'], message_timestamp)
 
         msgdict = um['messages'] 
         # Test that messages from only one user was returned
         self.assertEqual(msgdict.keys(), ['sender'])
         # Test that only one message was received from this user
         self.assertEqual(len(msgdict['sender']), 1)
-        # Test that the message tuple has 5 elements
-        self.assertEqual(len(msgdict['sender'][0]), 5)
-        # Test the message's timestamp
-        self.assertEqual(bool(RE.search(msgdict['sender'][0][4])), True)
-        self.assertEqual(msgdict['sender'][0][4], message_timestamp)
+        # Test that the message tuple has 3 elements
+        self.assertEqual(len(msgdict['sender'][0]), 3)
+        # Test the message's last_msg_date
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(msgdict['sender'][0][2])))
+        self.assertEqual(msgdict['sender'][0][2], message_timestamp)
         # Test the senders username
         self.assertEqual(msgdict['sender'][0][0], 'sender')
-        # Test that message date
-        self.assertEqual(msgdict['sender'][0][1], 
-                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
-        # Test that message time
-        self.assertEqual(msgdict['sender'][0][2], 
-                    datetime.datetime.now(utc).strftime("%H:%M"))
         # Test that message text
-        self.assertEqual(msgdict['sender'][0][3], 'This is the message')
+        self.assertEqual(msgdict['sender'][0][1], 'This is the message')
 
         # Test getMessages with multiple senders. We didn't mark the
         # previous sender's messages as 'read', so they should be returned
@@ -332,13 +333,13 @@ class TestChatService(ztc.ZopeTestCase):
         response = s.sendMessage('sender2', 'secret', 'recipient', 'another msg')
         response = json.loads(response)
         self.assertEqual(response['status'], config.SUCCESS)
-        self.assertEqual(bool(RE.search(response['timestamp'])), True)
-        message2_timestamp = response['timestamp']
+        self.assertEqual(bool(config.VALID_DATE_REGEX.search(response['last_msg_date'])), True)
+        message2_timestamp = response['last_msg_date']
 
-        um = s.getMessages('recipient', 'secret', config.NULL_DATE)
+        um = s.getMessages('recipient', 'secret', None, config.NULL_DATE, mark_cleared=True)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
-        self.assertEqual(um['timestamp'], message2_timestamp)
+        self.assertEqual(um['last_msg_date'], message2_timestamp)
 
         msgdict = um['messages'] 
         # Test that messages from two users were returned
@@ -347,130 +348,143 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(len(msgdict.values()[0]), 1)
         self.assertEqual(len(msgdict.values()[1]), 1)
 
-        # Test the messages' timestamps
-        self.assertEqual(bool(RE.search(msgdict['sender'][0][4])), True)
-        self.assertEqual(msgdict['sender'][0][4], message_timestamp)
-        self.assertEqual(msgdict['sender2'][0][4], message2_timestamp)
+        # Test the messages' last_msg_dates
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(msgdict['sender'][0][2])))
+        self.assertEqual(msgdict['sender'][0][2], message_timestamp)
+        self.assertEqual(msgdict['sender2'][0][2], message2_timestamp)
 
         # Test the properties of the message sent by senders
-        self.assertEqual(len(msgdict['sender'][0]), 5)
-        self.assertEqual(len(msgdict['sender2'][0]), 5)
+        self.assertEqual(len(msgdict['sender'][0]), 3)
+        self.assertEqual(len(msgdict['sender2'][0]), 3)
 
         self.assertEqual(msgdict['sender2'][0][0], 'sender2')
-        self.assertEqual(msgdict['sender2'][0][1], 
-                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
-        self.assertEqual(msgdict['sender2'][0][2], 
-                    datetime.datetime.now(utc).strftime("%H:%M"))
-        self.assertEqual(msgdict['sender2'][0][3], 'another msg')
+        self.assertEqual(msgdict['sender2'][0][1], 'another msg')
 
-        # Test for messages sent after message_timestamp. This should not
+        # Test for uncleared messages sent after message_timestamp. This should not
         # return messages.
-        um = s.getMessages('recipient', 'secret', message2_timestamp)
+        um = s.getMessages('recipient', 'secret', None, message2_timestamp, cleared_status=False)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
         self.assertEqual(um['messages'], {})
-        self.assertEqual(um['timestamp'], message2_timestamp)
+        self.assertEqual(um['last_msg_date'], config.NULL_DATE)
 
-
-    def test_message_clearing(self):
-        """ Test the 'sendMessage' and 'getUnclearedMessages' methods 
-        """
-        s = self.chatservice
-        s.register('sender', 'secret')
-        s.register('recipient', 'secret')
-
-        um = s.getUnclearedMessages('recipient', 'secret', 'sender', config.NULL_DATE)
-        um = json.loads(um)
-        self.assertEqual(um['messages'], {})
 
         response = s.sendMessage('sender', 'secret', 'recipient', 'message')
         response = json.loads(response)
         self.assertEqual(response['status'], config.SUCCESS)
-        self.assertEqual(bool(RE.search(response['timestamp'])), True)
-        message_timestamp = response['timestamp']
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(response['last_msg_date'])))
+        message_timestamp = response['last_msg_date']
 
         # Test authentication
-        um = s.getUnclearedMessages(
-                            'recipient', 
-                            'wrongpass', 
-                            'sender', 
-                            config.NULL_DATE,
-                            clear=False)
+        um = s.getMessages('recipient', 
+                           'wrongpass', 
+                           'sender', 
+                           config.NULL_DATE,
+                           cleared_status=False,
+                           mark_cleared=False)
         um = json.loads(um)
         self.assertEqual(um['status'], config.AUTH_FAIL)
-        self.assertEqual(um['messages'], {})
-        self.assertEqual(um['timestamp'], config.NULL_DATE)
-
 
         # Test invalid date.
-        um = s.getUnclearedMessages(
-                            'recipient', 
-                            'secret', 
-                            'sender', 
-                            '123512512351235',
-                            clear=False)
+        um = s.getMessages('recipient', 
+                           'secret', 
+                           'sender', 
+                           '123512512351235',
+                           cleared_status=False,
+                           mark_cleared=False)
         um = json.loads(um)
-        self.assertEqual(um['status'], config.SERVER_FAULT)
-        self.assertEqual(um['messages'], {})
-        self.assertEqual(um['timestamp'], config.NULL_DATE)
+        self.assertEqual(um['status'], config.ERROR)
+        
+        # Test invalid pars.
+        um = s.getMessages('recipient', 
+                           'secret', 
+                           'sender', 
+                           config.NULL_DATE,
+                           cleared_status='True',
+                           mark_cleared=False)
+        um = json.loads(um)
+        self.assertEqual(um['status'], config.ERROR)
+        
+        um = s.getMessages('recipient', 
+                           'secret', 
+                           'sender', 
+                           config.NULL_DATE,
+                           cleared_status='True',
+                           mark_cleared='False')
+        um = json.loads(um)
+        self.assertEqual(um['status'], config.ERROR)
 
         # Test with valid inputs
-        um = s.getUnclearedMessages(
+        recipient_messages = s.getMessages(
                             'recipient', 
                             'secret', 
                             'sender', 
                             config.NULL_DATE,
-                            clear=False)
-        um = json.loads(um)
-        self.assertEqual(um['status'], config.SUCCESS)
-        self.assertEqual(um.keys(), ['status', 'timestamp', 'messages'])
-        self.assertEqual(um['timestamp'], message_timestamp)
+                            cleared_status=False,
+                            mark_cleared=False)
+        recipient_messages = json.loads(recipient_messages)
+        self.assertEqual(recipient_messages['status'], config.SUCCESS)
+        self.assertEqual(recipient_messages.keys(), ['status', 'messages', 'last_msg_date'])
+        self.assertEqual(recipient_messages['last_msg_date'], message_timestamp)
 
         # The uncleared messages datastructure looks as follows:
         # {
         #     'status': 0,
-        #     'timestamp': '2011-09-30T12:43:49+00:00'
+        #     'last_msg_date': '2011-09-30T12:43:49+00:00'
         #     'messages': {
         #             'sender': [ ['sender', '2011/09/30', '12:43', 'first message', '2011-09-30T12:43:49+00:00'] ]
         #           },
         # }
 
-        # Check that there is a ISO8601 timestamp.
-        self.assertEqual(bool(RE.search(um['timestamp'])), True)
+        # Check that there is a ISO8601 last_msg_date.
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(recipient_messages['last_msg_date'])))
 
-        msgs = um['messages'] 
+        msgs = recipient_messages['messages'] 
         # Test that messages from only one user was returned
         self.assertEqual(len(msgs), 1)
         # Test that only one message was received from this user
         self.assertEqual(len(msgs.values()[0]), 1)
-        # Test that the message tuple has 5 elements
-        self.assertEqual(len(msgs.values()[0][0]), 5)
-        # Test the message's timestamp
-        self.assertEqual(bool(RE.search(msgs.values()[0][0][4])), True)
-        self.assertEqual(msgs.values()[0][0][4], message_timestamp)
+        # Test that the message tuple has 3 elements
+        self.assertEqual(len(msgs.values()[0][0]), 3)
+        # Test the message's last_msg_date
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(msgs.values()[0][0][2])))
+        self.assertEqual(msgs.values()[0][0][2], message_timestamp)
         # Test that senders username
         self.assertEqual(msgs.values()[0][0][0], 'sender')
-        # Test that message date
-        self.assertEqual(msgs.values()[0][0][1], 
-                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
-        # Test that message time
-        self.assertEqual(msgs.values()[0][0][2], 
-                    datetime.datetime.now(utc).strftime("%H:%M"))
         # Test that message text
-        self.assertEqual(msgs.values()[0][0][3], 'message')
+        self.assertEqual(msgs.values()[0][0][1], 'message')
+
+        # Now test that the sender also will get the message he sent...
+        sender_messages = s.getMessages(
+                            'sender', 
+                            'secret', 
+                            'recipient', 
+                            config.NULL_DATE,
+                            cleared_status=False,
+                            mark_cleared=False)
+        sender_messages = json.loads(sender_messages)
+
+        self.assertEqual(sender_messages.keys(), recipient_messages.keys())
+        self.assertEqual(sender_messages['status'], recipient_messages['status'])
+        self.assertEqual(sender_messages['last_msg_date'], recipient_messages['last_msg_date'])
+        self.assertEqual(sender_messages['messages']['recipient'], recipient_messages['messages']['sender'])
 
 
-        # Test getUnclearedMessages with multiple senders. We didn't mark the
+        # Test getMessages with multiple senders. We didn't mark the
         # previous sender's messages as 'clear', so they should be returned
         # again.
-        s.register('sender2', 'secret')
         response = s.sendMessage('sender2', 'secret', 'recipient', 'another msg')
         response = json.loads(response)
         self.assertEqual(response['status'], config.SUCCESS)
-        self.assertEqual(bool(RE.search(response['timestamp'])), True)
-        message2_timestamp = response['timestamp']
+        self.assertEqual(bool(config.VALID_DATE_REGEX.search(response['last_msg_date'])), True)
+        message2_timestamp = response['last_msg_date']
 
-        um = s.getUnclearedMessages('recipient', 'secret', None, config.NULL_DATE, clear=True)
+        um = s.getMessages('recipient', 
+                           'secret', 
+                           None, 
+                           config.NULL_DATE, 
+                           cleared_status=False,
+                           mark_cleared=True)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
         # Test that messages from two users were returned
@@ -480,108 +494,73 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(len(msgs.values()[0]), 1)
         self.assertEqual(len(msgs.values()[1]), 1)
 
-        # Test the messages' timestamps
-        self.assertEqual(msgs['sender'][0][4], message_timestamp)
-        self.assertEqual(msgs['sender2'][0][4], message2_timestamp)
+        # Test the messages' last_msg_dates
+        self.assertEqual(msgs['sender'][0][2], message_timestamp)
+        self.assertEqual(msgs['sender2'][0][2], message2_timestamp)
 
         # Test the properties of the message sent by sender1
-        self.assertEqual(len(msgs.values()[1][0]), 5)
+        self.assertEqual(len(msgs.values()[1][0]), 3)
         self.assertEqual(msgs['sender2'][0][0], 'sender2')
-        self.assertEqual(msgs['sender2'][0][1], 
-                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
-        self.assertEqual(msgs['sender2'][0][2], 
-                    datetime.datetime.now(utc).strftime("%H:%M"))
-        self.assertEqual(msgs['sender2'][0][3], 'another msg')
-        self.assertEqual(bool(RE.search(msgs['sender2'][0][4])), True)
+        self.assertEqual(msgs['sender2'][0][1], 'another msg')
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(msgs['sender2'][0][2])))
 
-        # Check that the global timestamp is the same as the last message's
-        self.assertEqual(um['timestamp'], msgs['sender2'][0][4])
+        # Check that the global last_msg_date is the same as the last message's
+        self.assertEqual(um['last_msg_date'], msgs['sender2'][0][2])
 
         # All the uncleared messages for 'recipient' has now been marked as clear,
         # lets test that no new messages are returned
-        um = s.getUnclearedMessages('recipient', 'secret', None, config.NULL_DATE)
+        um = s.getMessages('recipient', 
+                           'secret', 
+                           None, 
+                           config.NULL_DATE,
+                           cleared_status=False,
+                           mark_cleared=False)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
         self.assertEqual(um['messages'], {})
-        self.assertEqual(um['timestamp'], config.NULL_DATE)
-
-
-    def testMessageFetching(self):
-        """ Test the getMessages method 
-        """
-        s = self.chatservice
-        s.register('sender', 'secret')
-        s.register('recipient', 'secret')
-
-        um = s.getMessages('recipient', 'secret', since=config.NULL_DATE)
-        um = json.loads(um)
-        self.assertEqual(um['messages'], {})
+        self.assertEqual(um['last_msg_date'], config.NULL_DATE)
 
         before_first_msg = datetime.datetime.now(utc).isoformat()
 
-        response = s.sendMessage('sender', 'secret', 'recipient', 'first message')
+        response = s.sendMessage('sender', 'secret', 'recipient', 'xxx message')
         response = json.loads(response)
         self.assertEqual(response['status'], config.SUCCESS)
 
-        # Test authentication
-        um = s.getMessages('recipient', 'wrongpass', since=config.NULL_DATE)
-        um = json.loads(um)
-        self.assertEqual(um['status'], config.AUTH_FAIL)
-        self.assertEqual(um['messages'], {})
-
-        # Test invalid date.
-        um = s.getMessages('recipient', 'secret', '123512512351235')
-        um = json.loads(um)
-        self.assertEqual(um['status'], config.SERVER_FAULT)
-        self.assertEqual(um['messages'], {})
-        self.assertEqual(um['timestamp'], config.NULL_DATE)
-
-        # Test with valid data
-        um = s.getMessages('recipient', 'secret', since=config.NULL_DATE)
+        um = s.getMessages('recipient', 'secret', None, since=config.NULL_DATE, cleared_status=False)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
-        # The uncleared messages datastructure looks as follows:
-        # {
-        #     'status': 0,
-        #     'timestamp': '2011-09-30T12:43:49+00:00'
-        #     'messages': {
-        #             'sender': [ ['sender', '2011/09/30', '12:43', 'first message', '2011-09-30T12:43:49+00:00'] ]
-        #           },
-        # }
+        self.assertEqual(len(msgs), 2)
 
-        # Check that there is a timestamp.
-        self.assertEqual(bool(RE.search(um['timestamp'])), True)
-        self.assertEqual(um['timestamp'] > before_first_msg, True)
-
+        um = s.getMessages('recipient', 'secret', None, since=config.NULL_DATE, cleared_status=False)
+        um = json.loads(um)
         msgs = um['messages'] 
         # Test that messages from only one user was returned
         self.assertEqual(len(msgs), 1)
+        self.assertEqual(um['status'], config.SUCCESS)
+
+        # Check that there is a last_msg_date.
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(um['last_msg_date'])))
+        self.assertEqual(um['last_msg_date'] > before_first_msg, True)
+
         # Test that only one message was received from this user
         self.assertEqual(len(msgs.values()[0]), 1)
-        # Test that the message tuple has 5 elements
-        self.assertEqual(len(msgs.values()[0][0]), 5)
+        # Test that the message tuple has 3 elements
+        self.assertEqual(len(msgs.values()[0][0]), 3)
         # Test that senders username
         self.assertEqual(msgs.values()[0][0][0], 'sender')
-        # Test that message date
-        self.assertEqual(msgs.values()[0][0][1], 
-                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
-        # Test that message time
-        self.assertEqual(msgs.values()[0][0][2], 
-                    datetime.datetime.now(utc).strftime("%H:%M"))
         # Test that message text
-        self.assertEqual(msgs.values()[0][0][3], 'first message')
+        self.assertEqual(msgs.values()[0][0][1], 'xxx message')
 
 
         # Test getMessages with multiple senders. 
         before_second_msg = datetime.datetime.now(utc).isoformat()
-        s.register('sender2', 'secret')
         response = s.sendMessage('sender2', 'secret', 'recipient', 'second message')
         response = json.loads(response)
         self.assertEqual(response['status'], config.SUCCESS)
 
         after_second_msg = datetime.datetime.now(utc).isoformat()
 
-        um = s.getMessages('recipient', 'secret', since=before_first_msg)
+        um = s.getMessages('recipient', 'secret', None, since=before_first_msg, cleared_status=False)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
         # Test that messages from two users were returned
@@ -592,41 +571,32 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(len(msgs.values()[1]), 1)
 
         # Test the properties of the message sent by sender1
-        self.assertEqual(len(msgs.values()[1][0]), 5)
+        self.assertEqual(len(msgs.values()[1][0]), 3)
         self.assertEqual(msgs['sender2'][0][0], 'sender2')
-        self.assertEqual(msgs['sender2'][0][1], 
-                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
-        self.assertEqual(msgs['sender2'][0][2], 
-                    datetime.datetime.now(utc).strftime("%H:%M"))
-        self.assertEqual(msgs['sender2'][0][3], 'second message')
-        self.assertEqual(bool(RE.search(msgs['sender2'][0][4])), True)
+        self.assertEqual(msgs['sender2'][0][1], 'second message')
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(msgs['sender2'][0][2])))
 
-        # Check that the global timestamp is the same as the last message's
-        self.assertEqual(um['timestamp'], msgs['sender2'][0][4])
+        # Check that the global last_msg_date is the same as the last message's
+        self.assertEqual(um['last_msg_date'], msgs['sender2'][0][2])
 
         # Now we make that date later than the first message, so we should only
         # receive the second one.
-        um = s.getMessages('recipient', 'secret', since=before_second_msg)
+        um = s.getMessages('recipient', 'secret', None, since=before_second_msg, cleared_status=False)
         um = json.loads(um)
 
         self.assertEqual(um['status'], config.SUCCESS)
         msgs = um['messages'] 
         self.assertEqual(len(msgs), 1)
         self.assertEqual(msgs.values()[0][0][0], 'sender2')
-        self.assertEqual(msgs.values()[0][0][1], 
-                    datetime.datetime.now(utc).strftime("%Y/%m/%d"))
-        self.assertEqual(msgs.values()[0][0][2], 
-                    datetime.datetime.now(utc).strftime("%H:%M"))
-        self.assertEqual(msgs.values()[0][0][3], 'second message')
-        self.assertEqual(bool(RE.search(msgs['sender2'][0][4])), True)
+        self.assertEqual(msgs.values()[0][0][1], 'second message')
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(msgs['sender2'][0][2])))
 
-        # Check that there is a ISO8601 timestamp.
-        self.assertEqual(bool(RE.search(um['timestamp'])), True)
-        self.assertEqual(um['timestamp'] > before_second_msg, True)
-        self.assertEqual(um['timestamp'] < after_second_msg, True)
-        # Check that the global timestamp is the same as the last (and only) message's
-        self.assertEqual(um['timestamp'], msgs['sender2'][0][4])
-
+        # Check that there is a ISO8601 last_msg_date.
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(um['last_msg_date'])))
+        self.assertEqual(um['last_msg_date'] > before_second_msg, True)
+        self.assertEqual(um['last_msg_date'] < after_second_msg, True)
+        # Check that the global last_msg_date is the same as the last (and only) message's
+        self.assertEqual(um['last_msg_date'], msgs['sender2'][0][2])
 
 
 def test_suite():
