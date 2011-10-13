@@ -281,7 +281,7 @@ class ChatService(Folder):
                     password,
                     sender, 
                     since=datetime.min.isoformat(),
-                    cleared_status=None,
+                    cleared=None,
                     mark_cleared=False,
                     ):
         """ Returns the uncleared messages since a certain date.
@@ -292,14 +292,14 @@ class ChatService(Folder):
             If sender is none, return all uncleared messages, otherwise return
             only the uncleared messages sent by that specific sender.
 
-            cleared_status must be in [None, True, False]
+            cleared must be in [None, True, False]
             If True, return only cleared messages.
             If False, return only uncleared once.
             Else, return all of them.
         """
 
         if mark_cleared not in [None, True, False] or \
-                    cleared_status not in [None, True, False]:
+                    cleared not in [None, True, False]:
 
             return json.dumps({
                         'status': config.ERROR, 
@@ -338,7 +338,7 @@ class ChatService(Folder):
 
             msg_tuples.sort()
             for i, m in msg_tuples:
-                if cleared_status is not None and m._cleared != cleared_status:
+                if cleared is not None and m._cleared != cleared:
                     continue
 
                 conv_messages.append((m.author, m.text, m.time))

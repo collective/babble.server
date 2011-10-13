@@ -362,7 +362,7 @@ class TestChatService(ztc.ZopeTestCase):
 
         # Test for uncleared messages sent after message_timestamp. This should not
         # return messages.
-        um = s.getMessages('recipient', 'secret', None, message2_timestamp, cleared_status=False)
+        um = s.getMessages('recipient', 'secret', None, message2_timestamp, cleared=False)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
         self.assertEqual(um['messages'], {})
@@ -380,7 +380,7 @@ class TestChatService(ztc.ZopeTestCase):
                            'wrongpass', 
                            'sender', 
                            config.NULL_DATE,
-                           cleared_status=False,
+                           cleared=False,
                            mark_cleared=False)
         um = json.loads(um)
         self.assertEqual(um['status'], config.AUTH_FAIL)
@@ -390,7 +390,7 @@ class TestChatService(ztc.ZopeTestCase):
                            'secret', 
                            'sender', 
                            '123512512351235',
-                           cleared_status=False,
+                           cleared=False,
                            mark_cleared=False)
         um = json.loads(um)
         self.assertEqual(um['status'], config.ERROR)
@@ -400,7 +400,7 @@ class TestChatService(ztc.ZopeTestCase):
                            'secret', 
                            'sender', 
                            config.NULL_DATE,
-                           cleared_status='True',
+                           cleared='True',
                            mark_cleared=False)
         um = json.loads(um)
         self.assertEqual(um['status'], config.ERROR)
@@ -409,7 +409,7 @@ class TestChatService(ztc.ZopeTestCase):
                            'secret', 
                            'sender', 
                            config.NULL_DATE,
-                           cleared_status='True',
+                           cleared='True',
                            mark_cleared='False')
         um = json.loads(um)
         self.assertEqual(um['status'], config.ERROR)
@@ -420,7 +420,7 @@ class TestChatService(ztc.ZopeTestCase):
                             'secret', 
                             'sender', 
                             config.NULL_DATE,
-                            cleared_status=False,
+                            cleared=False,
                             mark_cleared=False)
         recipient_messages = json.loads(recipient_messages)
         self.assertEqual(recipient_messages['status'], config.SUCCESS)
@@ -460,7 +460,7 @@ class TestChatService(ztc.ZopeTestCase):
                             'secret', 
                             'recipient', 
                             config.NULL_DATE,
-                            cleared_status=False,
+                            cleared=False,
                             mark_cleared=False)
         sender_messages = json.loads(sender_messages)
 
@@ -483,7 +483,7 @@ class TestChatService(ztc.ZopeTestCase):
                            'secret', 
                            None, 
                            config.NULL_DATE, 
-                           cleared_status=False,
+                           cleared=False,
                            mark_cleared=True)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
@@ -513,7 +513,7 @@ class TestChatService(ztc.ZopeTestCase):
                            'secret', 
                            None, 
                            config.NULL_DATE,
-                           cleared_status=False,
+                           cleared=False,
                            mark_cleared=False)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
@@ -526,12 +526,12 @@ class TestChatService(ztc.ZopeTestCase):
         response = json.loads(response)
         self.assertEqual(response['status'], config.SUCCESS)
 
-        um = s.getMessages('recipient', 'secret', None, since=config.NULL_DATE, cleared_status=False)
+        um = s.getMessages('recipient', 'secret', None, since=config.NULL_DATE, cleared=False)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
         self.assertEqual(len(msgs), 2)
 
-        um = s.getMessages('recipient', 'secret', None, since=config.NULL_DATE, cleared_status=False)
+        um = s.getMessages('recipient', 'secret', None, since=config.NULL_DATE, cleared=False)
         um = json.loads(um)
         msgs = um['messages'] 
         # Test that messages from only one user was returned
@@ -560,7 +560,7 @@ class TestChatService(ztc.ZopeTestCase):
 
         after_second_msg = datetime.datetime.now(utc).isoformat()
 
-        um = s.getMessages('recipient', 'secret', None, since=before_first_msg, cleared_status=False)
+        um = s.getMessages('recipient', 'secret', None, since=before_first_msg, cleared=False)
         um = json.loads(um)
         self.assertEqual(um['status'], config.SUCCESS)
         # Test that messages from two users were returned
@@ -581,7 +581,7 @@ class TestChatService(ztc.ZopeTestCase):
 
         # Now we make that date later than the first message, so we should only
         # receive the second one.
-        um = s.getMessages('recipient', 'secret', None, since=before_second_msg, cleared_status=False)
+        um = s.getMessages('recipient', 'secret', None, since=before_second_msg, cleared=False)
         um = json.loads(um)
 
         self.assertEqual(um['status'], config.SUCCESS)
