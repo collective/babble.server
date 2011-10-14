@@ -17,13 +17,23 @@ Features:
 - Web service: all public API methods return JSON strings.
 - 100% test coverage.
 
+
 Additional info:
 ----------------
 
 For additional info, please read the documentation at 
 http://opkode.net/babbledocs/babble.server/index.html 
 
-TODO:
------
- - Make the read attr on messages a timestamp (instead of bool)
+
+Important notice:
+-----------------
+
+If you are upgrading from babble.server 0.x to 1.x, you *must* run the upgrade
+step.
+
+This requires that you add the external method in Extensions/upgrade_to_1.0.py
+in the same Zope instance where you have added the ChatService, and then run it
+by clicking on the "test" tab.
+
+Make sure to backup your Data.fs before running the upgrade!
 
