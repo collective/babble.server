@@ -334,10 +334,7 @@ class ChatService(Folder):
                 for i in mbox.objectIds():
                     i = float(i)
                     mdate = datetime.utcfromtimestamp(i).replace(tzinfo=utc).isoformat()
-                    # We test for smaller/bigger and equal, because the dates
-                    # passed in will usually be ones from previous getMessages
-                    # calls.
-                    if mdate <= since or mdate >= until:
+                    if mdate <= since or mdate > until:
                         continue
 
                     m = mbox._getOb('%f' % i)

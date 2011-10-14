@@ -338,12 +338,26 @@ class TestChatService(ztc.ZopeTestCase):
 
         db = json.loads(s.getMessages( 'recipient', 'secret', None, None, None, False, False ))
 
-        # Test exact 'since' and 'until' dates.
+        # Test exact 'since' dates.
         db = json.loads(s.getMessages( 'recipient', 'secret', None, um['last_msg_date'], None, False, False ))
         self.assertEqual(db['messages'], {})
 
+        # Test exact 'until' date. This must return the message
         db = json.loads(s.getMessages( 'recipient', 'secret', None, None, um['last_msg_date'], False, False ))
-        self.assertEqual(db['messages'], {})
+        msgdict = db['messages'] 
+        # Test that messages from only one user was returned
+        self.assertEqual(msgdict.keys(), ['sender'])
+        # Test that only one message was received from this user
+        self.assertEqual(len(msgdict['sender']), 1)
+        # Test that the message tuple has 3 elements
+        self.assertEqual(len(msgdict['sender'][0]), 3)
+        # Test the message's last_msg_date
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(msgdict['sender'][0][2])))
+        self.assertEqual(msgdict['sender'][0][2], message_timestamp)
+        # Test the senders username
+        self.assertEqual(msgdict['sender'][0][0], 'sender')
+        # Test that message text
+        self.assertEqual(msgdict['sender'][0][1], 'This is the message')
 
         # Test getMessages with multiple senders. We didn't mark the
         # previous sender's messages as 'read', so they should be returned
