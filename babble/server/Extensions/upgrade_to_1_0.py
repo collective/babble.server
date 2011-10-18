@@ -1,6 +1,7 @@
 import time
 import dateutil.parser
 import transaction
+from hashlib import sha224
 from pytz import utc
 from zExceptions import BadRequest
 from DateTime.interfaces import IDateTime
@@ -31,9 +32,7 @@ def run(self):
         for user in getattr(service, 'users').objectValues():
             for oldmbox in user.objectValues():
 
-                ord1 = ''.join([str(ord(c)) for c in user.id])
-                ord2 = ''.join([str(ord(c)) for c in oldmbox.id])
-                cid = '-'.join(sorted([ord1, ord2]))
+                cid = '.'.join(sorted([sha224(user.id).hexdigest(), sha224(oldmbox.id).hexdigest()]))
                 if not convs.hasObject(cid):
                     convs._setObject(cid, Conversation(cid, user.id, oldmbox.id))
                 conv = convs._getOb(cid)

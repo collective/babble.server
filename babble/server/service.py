@@ -3,6 +3,7 @@ import simplejson as json
 from datetime import datetime
 from datetime import timedelta
 from pytz import utc
+from hashlib import sha224
 
 from zope.interface import implements
 
@@ -128,9 +129,7 @@ class ChatService(Folder):
     def _getConversation(self, user1, user2):
         """ """
         folder = self._getConversationsFolder()
-        ord1 = ''.join([str(ord(c)) for c in user1])
-        ord2 = ''.join([str(ord(c)) for c in user2])
-        id = '-'.join(sorted([ord1, ord2]))
+        id = '.'.join(sorted([sha224(user1).hexdigest(), sha224(user2).hexdigest()]))
 
         if not folder.hasObject(id):
             folder._setObject(id, Conversation(id, user1, user2))
@@ -140,8 +139,7 @@ class ChatService(Folder):
     def _getConversationsFor(self, username):
         """ """
         f = self._getConversationsFolder()
-        username  = ''.join([str(ord(c)) for c in username])
-        return [f._getOb(i) for i in f.objectIds() if username in i.split('-')]
+        return [f._getOb(i) for i in f.objectIds() if sha224(username).hexdigest() in i.split('.')]
 
 
     def _authenticate(self, username, password):
