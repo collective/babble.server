@@ -1,13 +1,11 @@
 import time
 import dateutil.parser
 import transaction
-from hashlib import sha224
 from pytz import utc
 from zExceptions import BadRequest
 from DateTime.interfaces import IDateTime
 from Products.BTreeFolder2.BTreeFolder2 import manage_addBTreeFolder
 from babble.server.conversation import Conversation
-from babble.server.messagebox import MessageBox
 from babble.server.interfaces import IChatService
 from babble.server.message import Message
 
@@ -32,13 +30,8 @@ def run(self):
         for user in getattr(service, 'users').objectValues():
             for oldmbox in user.objectValues():
 
-                cid = '.'.join(sorted([sha224(user.id).hexdigest(), sha224(oldmbox.id).hexdigest()]))
-                if not convs.hasObject(cid):
-                    convs._setObject(cid, Conversation(cid, user.id, oldmbox.id))
-                conv = convs._getOb(cid)
-                if oldmbox.id not in conv.objectIds():
-                    conv._setObject(oldmbox.id, MessageBox(oldmbox.id))
-                newmbox = conv._getOb(oldmbox.id)
+                conv = service._getConversation(user.id, oldmbox.id)
+                newmbox = Conversation._getMessageBox(oldmbox.id)
                 mids = []
                 oldids = []
                 newids = []

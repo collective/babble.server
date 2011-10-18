@@ -3,7 +3,6 @@ import simplejson as json
 from datetime import datetime
 from datetime import timedelta
 from pytz import utc
-from hashlib import sha224
 
 from zope.interface import implements
 
@@ -16,8 +15,8 @@ from persistent.dict import PersistentDict
 from Products.BTreeFolder2.BTreeFolder2 import manage_addBTreeFolder
 
 from interfaces import IChatService
-from user import User
 from conversation import Conversation
+from utils import hash_encode
 import config
 
 log = logging.getLogger('babble.server/service.py')
@@ -103,15 +102,6 @@ class ChatService(Folder):
         return self._getOb('users')
 
 
-    def _getUser(self, username):
-        """ Retrieve the IUser obj from the 'Users' folder.
-        """
-        users = self._getUsersFolder()
-        if not users.hasObject(username):
-            raise NotFound("%s is not registered." % username)
-        return users._getOb(username)
-        
-
     def _getConversationsFolder(self):
         """ The 'Conversations' folder is a BTreeFolder that contains
             IConversation objects.
@@ -129,8 +119,7 @@ class ChatService(Folder):
     def _getConversation(self, user1, user2):
         """ """
         folder = self._getConversationsFolder()
-        id = '.'.join(sorted([sha224(user1).hexdigest(), sha224(user2).hexdigest()]))
-
+        id = '.'.join(sorted([hash_encode(user1), hash_encode(user2)]))
         if not folder.hasObject(id):
             folder._setObject(id, Conversation(id, user1, user2))
         return folder._getOb(id)
@@ -139,7 +128,8 @@ class ChatService(Folder):
     def _getConversationsFor(self, username):
         """ """
         f = self._getConversationsFolder()
-        return [f._getOb(i) for i in f.objectIds() if sha224(username).hexdigest() in i.split('.')]
+        username = hash_encode(username)
+        return [f._getOb(i) for i in f.objectIds() if username in i.split('.')]
 
 
     def _authenticate(self, username, password):
@@ -177,8 +167,7 @@ class ChatService(Folder):
 
 
     def register(self, username, password):
-        """ Register a user with the babble.server's acl_users and create a
-            'User' object in the 'Users' folder
+        """ Register a user with the babble.server's acl_users
         """
         if ' ' in username:
             return json.dumps({
@@ -189,8 +178,6 @@ class ChatService(Folder):
         self.acl_users.userFolderAddUser(
                         username, password, roles=(), domains=())
 
-        users = self._getUsersFolder()
-        users._setObject(username, User(username))
         return json.dumps({'status': config.SUCCESS})
 
 
@@ -203,7 +190,7 @@ class ChatService(Folder):
     def setUserPassword(self, username, password):
         """ Set the user's password """
         self.acl_users.userFolderEditUser(
-                    username, password, roles=(), domains=())
+                username, password, roles=(), domains=())
         return json.dumps({'status': config.SUCCESS})
 
 
@@ -214,44 +201,6 @@ class ChatService(Folder):
         uad = self._getCachedUserAccessDict()
         ou = [user for user in uad.keys() if self._isOnline(user)]
         return json.dumps({'status': config.SUCCESS, 'online_users': ou})
-
-
-    def setStatus(self, username, password, status):
-        """ Set the user's status.
-
-            The user might have a status such as 'available', 'chatty', 
-            'busy' etc. but this only applies if the user is actually 
-            online, as determined from the 'user access dictionary'.
-
-            The 'status' attribute is optional, it depends on the chat client 
-            whether the user's 'status' property is at all relevant 
-            and being used.
-        """
-        if self._authenticate(username, password) is None:
-            log.error('setStatus: authentication failed')
-            return json.dumps({'status': config.AUTH_FAIL})
-
-        user = self._getUser(username)
-        user.setStatus(status)
-        return json.dumps({'status': config.SUCCESS})
-
-
-    def getStatus(self, username):
-        """ Get the user's status.
-
-            The user might have a status such as 'available', 'chatty', 
-            'busy' etc. but this only applies if the user is actually 
-            online, as determined from the 'user access dictionary'.
-
-            The 'status' attribute is optional, it depends on the chat client 
-            whether the user's 'status' property is at all relevant 
-            and being used.
-        """
-        if not self._isOnline(username):
-            return json.dumps({'status': config.SUCCESS, 'userstatus': 'offline'})
-            
-        user = self._getUser(username)
-        return json.dumps({'status': config.SUCCESS, 'userstatus': user.getStatus()})
 
 
     def sendMessage(self, username, password, recipient, message):

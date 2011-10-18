@@ -1,11 +1,9 @@
 import logging
-
 from zope.interface import implements
-
 from Products.BTreeFolder2.BTreeFolder2 import BTreeFolder2
-
 from messagebox import MessageBox
 from interfaces import IConversation
+from utils import hash_encode
 
 log = logging.getLogger(__name__)
 
@@ -27,6 +25,7 @@ class Conversation(BTreeFolder2):
             messageboxes, instead of the conversation itself, to avoid conflict
             errors.
         """
+        owner = hash_encode(owner)
         if owner not in self.objectIds():
             self._setObject(owner, MessageBox(owner))
         return self._getOb(owner)

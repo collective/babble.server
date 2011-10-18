@@ -7,6 +7,8 @@ from interfaces import IUser
 
 log = logging.getLogger('babble.server/user.py')
 
+# Deprecated... currently not in use.
+
 class User(BTreeFolder2):
     """ A user on the message server """
 

@@ -27,10 +27,6 @@ class IChatService(Interface):
             See babble.server.interfaces.py:IUser
         """
 
-    def _getUser(self, username, auto_register=True):
-        """ Retrieve the IUser obj from the 'Users' folder.
-        """
-
     def _authenticate(self, username, password):
         """ Authenticate the user with username and password """
 
@@ -75,34 +71,6 @@ class IChatService(Interface):
             and return them as a list
 
             returns {'status': int, 'online_users': list}
-        """
-
-    def setStatus(self, username, status):
-        """ Set the user's status.
-
-            The user might have a status such as 'available', 'chatty', 
-            'busy' etc. but this only applies if the user is actually 
-            online, as determined from the 'user access dictionary'.
-
-            The 'status' attribute is optional, it depends on the chat client 
-            whether the user's 'status' property is at all relevant 
-            and being used.
-
-            returns {'status': int}
-        """
-
-    def getStatus(self, username):
-        """ Get the user's status.
-
-            The user might have a status such as 'available', 'chatty', 
-            'busy' etc. but this only applies if the user is actually 
-            online, as determined from the 'user access dictionary'.
-
-            The 'status' attribute is optional, it depends on the chat client 
-            whether the user's 'status' property is at all relevant 
-            and being used.
-
-            returns {'status': int, 'userstatus': string}
         """
 
     def sendMessage(self, username, password, recipient, message):
@@ -160,3 +128,4 @@ class IConversation(Interface):
 
 class IMessage(Interface):
     """ A message in a message box """
+
