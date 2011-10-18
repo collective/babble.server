@@ -12,8 +12,6 @@ Features:
 
 - User accounts: users must be registered for the chat service
 - Security: most messaging actions requires the user to authenticate 
-- User status support: users can set their status, such as 'busy', 'chatty' or
-  'invisible'.
 - Web service: all public API methods return JSON strings.
 - 100% test coverage.
 
@@ -43,3 +41,4 @@ Id:             upgrade_to_1.0
 Title:          Babble Server Upgrade 1.0
 Module Name:    babble.server.upgrade_to_1_0
 Function Name:  run
+

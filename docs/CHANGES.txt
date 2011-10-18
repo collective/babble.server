@@ -4,7 +4,12 @@ Changelog
 1.0b3 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Allow non-ascii usernames. [jcbrand]
+- Added stress tests and some speed improvements based on these tests. 
+  Most notable is that messages are now stored in shared messageboxes inside
+  conversation objects. [jcbrand]
+- User status support has been removed, since it's not being used by
+  babble.client. If someone is still relying on it, please let me know. [jcbrand]
 
 
 1.0b2 (2011-10-06)
