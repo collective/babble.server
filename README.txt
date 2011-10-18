@@ -37,3 +37,9 @@ by clicking on the "test" tab.
 
 Make sure to backup your Data.fs before running the upgrade!
 
+You can use the following values when adding the External Method:
+
+Id:             upgrade_to_1.0
+Title:          Babble Server Upgrade 1.0
+Module Name:    babble.server.upgrade_to_1_0
+Function Name:  run
