@@ -31,10 +31,7 @@ def run(self):
             for oldmbox in user.objectValues():
 
                 conv = service._getConversation(user.id, oldmbox.id)
-                newmbox = Conversation._getMessageBox(oldmbox.id)
-                mids = []
-                oldids = []
-                newids = []
+                newmbox = Conversation._getMessageBox(conv, oldmbox.id)
                 for message in oldmbox.objectValues():
                     if message.author != oldmbox.id:
                         # We now only store one author's messages per mbox. So
