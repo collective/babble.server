@@ -1,5 +1,4 @@
 from zope.interface import Interface 
-from zope import schema
 
 class IChatService(Interface):
     """ 
@@ -115,74 +114,34 @@ class IChatService(Interface):
             returns {'status': string}
         """
 
-    def getUnclearedMessages(
-                        self, 
-                        username, 
-                        password,
-                        sender, 
-                        since,
-                        clear=False,
-                        ):
-        """ Returns the uncleared messages since a certain date.
+    def getMessages(self, username, password, sender, since, until, cleared, mark_cleared):
+        """ Returns messages within a certain date range
 
-            The 'since' date format must be iso8601, which is also the format
-            of the returned timestamp.
-            
-            If sender is none, return all uncleared messages, otherwise return
-            only the uncleared messages sent by that specific sender.
+            Parameter values:
+            -----------------
+            sender: None or string
+                If None, return from all senders.
 
-            If clear=True, then mark the messages as being cleared.
+            since: iso8601 date string or None
+            until: iso8601 date string or None
+
+            cleared: None/True/False
+                If True, return only cleared messages.
+                If False, return only uncleared once.
+                Else, return all of them.
+
+            mark_cleared: True/False
         """
 
 
 class IUser(Interface):
     """ A user using the babble.server """
 
-    def _getMessageBox(self, owner):
-        """ The MessageBox is a container inside the 'User' object that stores
-            the messages sent and received by that user.
-        """
-
     def setStatus(self, status):
         """ Sets the user's status """
 
     def getStatus(self):
         """ Returns the user's status """
-
-    def addMessage(self, contact, message, author, timestamp):
-        """ Add a message to this user's contact's messagebox
-            
-            The message author could be either the user or the
-            contact (conversation partnet), and is therefore passed 
-            as a separate var.
-        """
-
-    def getMessages(self, username, password, since):
-        """ Return all messages since a certain date, as well as the timestamp 
-            of the newest message.
-
-            The 'since' date format must be iso8601, which is also the format
-            of the returned timestamp.
-            
-            To generate a date in this format, use the ISO8601() method for
-            Zope2 DateTime objects and isoformat() for python's builtin
-            datetime types.
-
-            It's very important that timezone information is also included!
-            I.e datetime.now(utc) instead of datetime.now()
-        """
-
-    def getUnclearedMessages(self, sender, since, clear=False):
-        """ Return uncleared messages in list of dicts with senders as keys. 
-
-            The date format of 'since' must be iso8601. 
-
-            If a sender is specified, then return only the messages sent by
-            him/her.
-
-            If clear=True, then mark them as cleared. Messages are usually marked
-            as cleared when the chat session is over.
-        """
 
 
 class IMessageBox(Interface):
@@ -201,21 +160,3 @@ class IConversation(Interface):
 
 class IMessage(Interface):
     """ A message in a message box """
-
-    author = schema.Text(
-        title=u"Message Author",
-        required=True,)
-
-    text = schema.Text(
-        title=u"Message Body",
-        required=True,)
-
-    time = schema.Datetime(
-        title=u"Timestamp for the message",
-        required=True,)
-
-    def uncleared(self):
-        """ Has this message been cleard? """
-
-    def markAsCleared(self):
-        """ Mark this message as cleared """
