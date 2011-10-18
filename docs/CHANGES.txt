@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.0b3 (unreleased)
+1.0b3 (2011-10-18)
 ------------------
 
 - Allow non-ascii usernames. [jcbrand]
