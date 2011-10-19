@@ -269,11 +269,11 @@ class TestChatService(ztc.ZopeTestCase):
 
         # Test that the recipient now has an updated last_msg_date attr
         user = s.acl_users.getUser('recipient')
-        self.assertEqual(um['last_msg_date'], user.last_msg_date)
+        self.assertEqual(um['last_msg_date'], user.last_received_date)
 
         # The sender didn't call getMessages yet, so his last_msg_date must be NULL_DATE
         user = s.acl_users.getUser('sender')
-        self.assertEqual(config.NULL_DATE, user.last_msg_date)
+        self.assertEqual(config.NULL_DATE, user.last_received_date)
 
         msgdict = um['messages'] 
         # Test that messages from only one user was returned
@@ -316,9 +316,9 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(msgdict['recipient'][0][0], 'sender')
         self.assertEqual(msgdict['recipient'][0][1], 'This is the message')
 
-        # Test that the recipient now has an updated last_msg_date attr
+        # Test that the recipient now has an updated last_received_date attr
         user = s.acl_users.getUser('sender')
-        self.assertEqual(db['last_msg_date'], user.last_msg_date)
+        self.assertEqual(db['last_msg_date'], user.last_received_date)
 
         # Test getMessages with multiple senders. 
         s.register('sender2', 'secret')
@@ -368,8 +368,8 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(sender2_messages['messages']['recipient'], recipient_messages['messages']['sender2'])
 
         user = s.acl_users.getUser('sender2')
-        self.assertEqual(um['last_msg_date'], user.last_msg_date)
-        last_date_sender2 = user.last_msg_date
+        self.assertEqual(um['last_msg_date'], user.last_received_date)
+        last_date_sender2 = user.last_received_date
 
         # Test for messages sent after message_timestamp. This should not return messages.
         um = json.loads(s.getMessages('recipient', 'secret', None, [], recipient_messages['last_msg_date'], None))
@@ -379,7 +379,7 @@ class TestChatService(ztc.ZopeTestCase):
 
         # Test that the recipient now has an updated last_msg_date attr
         user = s.acl_users.getUser('sender2')
-        self.assertEqual(sender2_messages['last_msg_date'], user.last_msg_date)
+        self.assertEqual(sender2_messages['last_msg_date'], user.last_received_date)
 
         # Test with finer date ranges via 'since' and 'until'
         before_msg = datetime.datetime.now(utc).isoformat()
@@ -434,7 +434,7 @@ class TestChatService(ztc.ZopeTestCase):
 
         # Test that the recipient now has an updated last_msg_date attr
         user = s.acl_users.getUser('recipient')
-        self.assertEqual(um['last_msg_date'], user.last_msg_date)
+        self.assertEqual(um['last_msg_date'], user.last_received_date)
 
         # Test getNewMessages. sender2 sent a message but didn't fetch it yet.
         # So we should be able to get it now.
@@ -442,7 +442,7 @@ class TestChatService(ztc.ZopeTestCase):
         response = s.sendMessage('sender', 'secret', 'sender2', "Message from sender to sender2")
 
         user = s.acl_users.getUser('sender2')
-        last_date_sender2 = user.last_msg_date
+        last_date_sender2 = user.last_received_date
 
         um = json.loads(s.getNewMessages('sender2', 'secret', None, []))
         self.assertEqual(len(um['messages']), 2)
@@ -452,7 +452,7 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(um['messages']['recipient'][0][1], "sender2's message between times")
 
         user = s.acl_users.getUser('sender2')
-        self.assertEqual(um['last_msg_date'], user.last_msg_date)
+        self.assertEqual(um['last_msg_date'], user.last_received_date)
 
         # last_msg_date must be the same date as sender's message, which was last
         self.assertEqual(um['last_msg_date'], um['messages']['sender'][0][2])
@@ -575,6 +575,18 @@ class TestChatService(ztc.ZopeTestCase):
 
         db = s.getMessages( 'user4', 'secret', None, 'chatroom1', config.NULL_DATE, None,)
         self.assertEqual(db, um)
+
+        db = s.getUnclearedMessages( 'user4', 'secret', None, 'chatroom1', False)
+        self.assertEqual(db, um)
+
+        db = s.getUnclearedMessages( 'user4', 'secret', None, 'chatroom1', True)
+        self.assertEqual(db, um)
+
+        db = json.loads(s.getUnclearedMessages( 'user4', 'secret', None, 'chatroom1', True))
+        self.assertEqual(mdict['status'], config.SUCCESS)
+        self.assertEqual(db['messages'], {})
+        self.assertEqual(db['chatroom_messages'], {})
+
 
 
 def test_suite():

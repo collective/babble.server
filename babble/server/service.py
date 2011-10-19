@@ -195,7 +195,8 @@ class ChatService(Folder):
                                     roles=(), 
                                     domains=(), 
                                     last_msg_date=config.NULL_DATE )
-        user.last_msg_date = config.NULL_DATE
+        user.last_received_date = config.NULL_DATE
+        user.last_cleared_date = config.NULL_DATE
         return json.dumps({'status': config.SUCCESS})
 
 
@@ -343,21 +344,6 @@ class ChatService(Folder):
                 'last_msg_date':last_msg_date }
 
 
-    def getNewMessages(self, username, password, partner, chatrooms):
-        """ Get all messages since the user's last fetch.
-        """
-        if self._authenticate(username, password) is None:
-            log.error('getMessages: authentication failed')
-            return json.dumps({'status': config.AUTH_FAIL})
-
-        user = self.acl_users.getUser(username)
-        since = user.last_msg_date
-        result = self._getMessages(username, partner, chatrooms, since, None)
-        if result['status'] == config.SUCCESS:
-            user.last_msg_date = result['last_msg_date']
-        return json.dumps(result)
-
-
     def getMessages(self, username, password, partner, chatrooms, since, until):
         """ Returns messages within a certain date range
 
@@ -378,7 +364,37 @@ class ChatService(Folder):
         result = self._getMessages(username, partner, chatrooms, since, until)
         if result['status'] == config.SUCCESS:
             user = self.acl_users.getUser(username)
-            user.last_msg_date = result['last_msg_date']
+            user.last_received_date = result['last_msg_date']
+        return json.dumps(result)
+
+
+    def getNewMessages(self, username, password, partner, chatrooms):
+        """ Get all messages since the user's last fetch.
+        """
+        if self._authenticate(username, password) is None:
+            log.error('getMessages: authentication failed')
+            return json.dumps({'status': config.AUTH_FAIL})
+
+        user = self.acl_users.getUser(username)
+        since = user.last_received_date
+        result = self._getMessages(username, partner, chatrooms, since, None)
+        if result['status'] == config.SUCCESS:
+            user.last_received_date = result['last_msg_date']
+        return json.dumps(result)
+
+
+    def getUnclearedMessages(self, username, password, partner, chatrooms, clear):
+        """ Get all messages since the last clearance date.
+        """
+        if self._authenticate(username, password) is None:
+            log.error('getMessages: authentication failed')
+            return json.dumps({'status': config.AUTH_FAIL})
+
+        user = self.acl_users.getUser(username)
+        since = user.last_cleared_date
+        result = self._getMessages(username, partner, chatrooms, since, None)
+        if clear and result['status'] == config.SUCCESS:
+            user.last_cleared_date = result['last_msg_date']
         return json.dumps(result)
 
 
