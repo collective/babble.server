@@ -16,6 +16,7 @@ from Products.BTreeFolder2.BTreeFolder2 import manage_addBTreeFolder
 
 from interfaces import IChatService
 from conversation import Conversation
+from chatroom import ChatRoom
 from utils import hash_encode
 import config
 
@@ -90,16 +91,15 @@ class ChatService(Folder):
         setattr(self, '_v_user_access_dict', uad.copy())
 
 
-    def _getUsersFolder(self):
-        """ The 'Users' folder is a BTreeFolder that contains IUser objects.
-            See babble.server.interfaces.py:IUser
+    def _getChatRoomsFolder(self):
+        """ The 'ChatRooms' folder is a BTreeFolder that contains IChatRoom objects.
         """
-        if not self.hasObject('users'):
-            log.warn("The chatservice 'Users' folder did not exist, "
+        if not self.hasObject('chatrooms'):
+            log.warn("The chatservice's 'ChatRooms' folder did not exist, "
                     "and has been automatically recreated.")
-            manage_addBTreeFolder(self, 'users', 'Users')
+            manage_addBTreeFolder(self, 'chatrooms', 'ChatRooms')
 
-        return self._getOb('users')
+        return self._getOb('chatrooms')
 
 
     def _getConversationsFolder(self):
@@ -109,7 +109,7 @@ class ChatService(Folder):
             See babble.server.interfaces.py:IConversation
         """
         if not self.hasObject('conversations'):
-            log.warn("The chatservice 'Conversations' folder did not exist, "
+            log.warn("The chatservice's 'Conversations' folder did not exist, "
                     "and has been automatically recreated.")
             manage_addBTreeFolder(self, 'conversations', 'Conversations')
 
@@ -130,6 +130,26 @@ class ChatService(Folder):
         f = self._getConversationsFolder()
         username = hash_encode(username)
         return [f._getOb(i) for i in f.objectIds() if username in i.split('.')]
+
+
+    def _getChatRooms(self, ids):
+        folder = self._getChatRoomsFolder()
+        if type(ids) == str:
+            ids= [ids]
+        crs = []
+        for c in ids:
+            crs.append(folder._getOb(c))
+        return crs
+
+
+    def _getChatRoom(self, id):
+        folder = self._getChatRoomsFolder()
+        return folder._getOb(id)
+
+
+    def createChatRoom(self, id, participants):
+        folder = self._getChatRoomsFolder()
+        folder._setObject(id, ChatRoom(id, participants))
 
 
     def _authenticate(self, username, password):
@@ -169,15 +189,13 @@ class ChatService(Folder):
     def register(self, username, password):
         """ Register a user with the babble.server's acl_users
         """
-        if ' ' in username:
-            return json.dumps({
-                            'status': config.ERROR,
-                            'errmsg': 'Spaces not allowed in usernames',
-                            })
-            
-        self.acl_users.userFolderAddUser(
-                        username, password, roles=(), domains=())
-
+        user = self.acl_users.userFolderAddUser(
+                                    username, 
+                                    password, 
+                                    roles=(), 
+                                    domains=(), 
+                                    last_msg_date=config.NULL_DATE )
+        user.last_msg_date = config.NULL_DATE
         return json.dumps({'status': config.SUCCESS})
 
 
@@ -224,60 +242,40 @@ class ChatService(Folder):
                 })
 
 
-    def getMessages(self, username, password, sender, since, until, cleared, mark_cleared):
-        """ Returns messages within a certain date range
-
-            Parameter values:
-            -----------------
-            sender: None or string
-                If None, return from all senders.
-
-            since: iso8601 date string or None
-            until: iso8601 date string or None
-
-            cleared: None/True/False
-                If True, return only cleared messages.
-                If False, return only uncleared once.
-                Else, return all of them.
-
-            mark_cleared: True/False
-        """
-
-        if mark_cleared not in [None, True, False] or \
-                    cleared not in [None, True, False]:
-            return json.dumps({
-                        'status': config.ERROR, 
-                        'errmsg': 'Invalid parameter value', })
-
-        if since is None:
-            since = config.NULL_DATE 
-        elif not config.VALID_DATE_REGEX.search(since):
-            return json.dumps({
-                        'status': config.ERROR, 
-                        'errmsg': 'Invalid date format', })
-
-        if until is None:
-            until = datetime.now(utc).isoformat()
-        elif not config.VALID_DATE_REGEX.search(until):
-            return json.dumps({
-                        'status': config.ERROR, 
-                        'errmsg': 'Invalid date format', })
-
+    def sendChatRoomMessage(self, username, password, room_name, message):
+        """ Sends a message to a chatroom """
         if self._authenticate(username, password) is None:
-            log.error('getMessages: authentication failed')
-            return json.dumps({'status': config.AUTH_FAIL})
+            log.error('sendMessage: authentication failed')
+            return json.dumps({
+                    'status': config.AUTH_FAIL, 
+                    'last_msg_date': config.NULL_DATE
+                    })
+        try:
+            chatroom = self._getChatRoom(room_name)
+        except KeyError:
+            return json.dumps({
+                    'status': config.ERROR, 
+                    'errmsg': "Chatroom '%s' doesn't exist" % room_name, 
+                    })
 
-        if sender:
-            cs = [self._getConversation(username, sender)]
-        else:
-            cs = self._getConversationsFor(username)
+        last_msg_date = chatroom.addMessage(message, username).time
+        return json.dumps({
+                'status': config.SUCCESS, 
+                'last_msg_date': last_msg_date
+                })
 
+
+    def _getMessagesFromContainers(self, containers, username, since, until):
+        """ containers: A list of conversations, or a list of chatrooms
+            since:  iso8601 date string
+            until:  iso8601 date string
+        """
         last_msg_date = config.NULL_DATE
-        messages = {}
-        for conversation in cs:
+        msgs_dict = {}
+        for container in containers:
             msg_tuples = []
-            conv_messages = []
-            for mbox in conversation.values():
+            mbox_messages = []
+            for mbox in container.values():
                 for i in mbox.objectIds():
                     i = float(i)
                     mdate = datetime.utcfromtimestamp(i).replace(tzinfo=utc).isoformat()
@@ -286,27 +284,103 @@ class ChatService(Folder):
 
                     m = mbox._getOb('%f' % i)
                     msg_tuples.append((i, m))
-
+            
             msg_tuples.sort()
             for i, m in msg_tuples:
-                if cleared is not None and m._cleared != cleared:
-                    continue
-
-                conv_messages.append((m.author, m.text, m.time))
+                mbox_messages.append((m.author, m.text, m.time))
 
                 if m.time > last_msg_date:
                     last_msg_date = m.time 
 
-                if mark_cleared: m._cleared = True
+            if mbox_messages:
+                msgs_dict[container.partner[username]] = tuple(mbox_messages)
 
-            if conv_messages:
-                messages[conversation.partner[username]] = tuple(conv_messages)
+        return msgs_dict, last_msg_date
 
-        return json.dumps({
-                    'status': config.SUCCESS, 
-                    'messages': messages,
-                    'last_msg_date':last_msg_date
-                    })
+
+    def _getMessages(self, username, partner, chatrooms, since, until): 
+        """ Returns messages within a certain date range
+
+            This is an internal method that assumes authentication has 
+            been done.
+        """ 
+        if since is None:
+            since = config.NULL_DATE
+        elif not config.VALID_DATE_REGEX.search(since):
+            return {'status': config.ERROR, 
+                    'errmsg': 'Invalid date format',}
+
+        if until is None:
+            until = datetime.now(utc).isoformat()
+        elif not config.VALID_DATE_REGEX.search(until):
+            return {'status': config.ERROR, 
+                    'errmsg': 'Invalid date format',}
+
+        if partner:
+            conversations = [self._getConversation(username, partner)]
+        else:
+            conversations = self._getConversationsFor(username)
+
+        if chatrooms:
+            try:
+                chatrooms = self._getChatRooms(chatrooms)
+            except KeyError, e:
+                return {'status': config.ERROR, 
+                        'errmsg': "Chatroom %s doesn't exist" % e,}
+
+        messages, last_msg_date = \
+            self._getMessagesFromContainers(conversations, username, since, until)
+
+        chatroom_msgs, last_chat_date = \
+            self._getMessagesFromContainers(chatrooms, username, since, until)
+
+        if last_chat_date > last_msg_date:
+            last_msg_date = last_chat_date
+                
+        return {'status': config.SUCCESS, 
+                'messages': messages,
+                'chatroom_messages': chatroom_msgs,
+                'last_msg_date':last_msg_date }
+
+
+    def getNewMessages(self, username, password, partner, chatrooms):
+        """ Get all messages since the user's last fetch.
+        """
+        if self._authenticate(username, password) is None:
+            log.error('getMessages: authentication failed')
+            return json.dumps({'status': config.AUTH_FAIL})
+
+        user = self.acl_users.getUser(username)
+        since = user.last_msg_date
+        result = self._getMessages(username, partner, chatrooms, since, None)
+        if result['status'] == config.SUCCESS:
+            user.last_msg_date = result['last_msg_date']
+        return json.dumps(result)
+
+
+    def getMessages(self, username, password, partner, chatrooms, since, until):
+        """ Returns messages within a certain date range
+
+            Parameter values:
+            -----------------
+            partner: None or string
+                If None, return from all partners.
+
+            chatrooms: list of strings
+
+            since: iso8601 date string or None
+            until: iso8601 date string or None
+        """
+        if self._authenticate(username, password) is None:
+            log.error('getMessages: authentication failed')
+            return json.dumps({'status': config.AUTH_FAIL})
+
+        result = self._getMessages(username, partner, chatrooms, since, until)
+        if result['status'] == config.SUCCESS:
+            user = self.acl_users.getUser(username)
+            user.last_msg_date = result['last_msg_date']
+        return json.dumps(result)
+
 
 InitializeClass(ChatService)
 

@@ -126,6 +126,9 @@ class IConversation(Interface):
         """ Add a message to the Conversation """
 
 
+class IChatRoom(Interface):
+        """ """ 
+
 class IMessage(Interface):
     """ A message in a message box """
 

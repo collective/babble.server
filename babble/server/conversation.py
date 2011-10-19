@@ -8,7 +8,7 @@ from utils import hash_encode
 log = logging.getLogger(__name__)
 
 class Conversation(BTreeFolder2):
-    """ A container for messages """
+    """ A conversation between two persons """
     implements(IConversation)
 
 
