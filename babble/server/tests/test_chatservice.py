@@ -456,6 +456,7 @@ class TestChatService(ztc.ZopeTestCase):
 
         user = s.acl_users.getUser('sender2')
         self.assertEqual(um['last_msg_date'], user.last_received_date)
+        last_received = user.last_received_date
 
         # last_msg_date must be the same date as sender's message, which was last
         self.assertEqual(um['last_msg_date'], um['messages']['sender'][0][2])
@@ -464,6 +465,7 @@ class TestChatService(ztc.ZopeTestCase):
         um = json.loads(s.getNewMessages('sender2', 'secret', None, []))
         self.assertEqual(um['messages'], {})
         self.assertEqual(um['last_msg_date'], config.NULL_DATE)
+        self.assertEqual(user.last_received_date, last_received)
 
 
 

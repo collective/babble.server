@@ -376,9 +376,12 @@ class ChatService(Folder):
             return json.dumps({'status': config.AUTH_FAIL})
 
         user = self.acl_users.getUser(username)
+        if not hasattr(user, 'last_received_date'):
+            user.last_received_date = config.NULL_DATE
         since = user.last_received_date
+
         result = self._getMessages(username, partner, chatrooms, since, None)
-        if result['status'] == config.SUCCESS:
+        if result['status'] == config.SUCCESS and result['messages']:
             user.last_received_date = result['last_msg_date']
         return json.dumps(result)
 
@@ -391,7 +394,10 @@ class ChatService(Folder):
             return json.dumps({'status': config.AUTH_FAIL})
 
         user = self.acl_users.getUser(username)
+        if not hasattr(user, 'last_cleared_date'):
+            user.last_cleared_date = config.NULL_DATE
         since = user.last_cleared_date
+
         result = self._getMessages(username, partner, chatrooms, since, None)
         if clear and result['status'] == config.SUCCESS:
             user.last_cleared_date = result['last_msg_date']
