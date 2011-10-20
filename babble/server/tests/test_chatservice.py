@@ -236,6 +236,9 @@ class TestChatService(ztc.ZopeTestCase):
         um = json.loads(s.getNewMessages('recipient', 'wrongpass', 'sender', []))
         self.assertEqual(um['status'], config.AUTH_FAIL)
 
+        um = json.loads(s.getUnclearedMessages('recipient', 'wrongpass', 'sender', [], False))
+        self.assertEqual(um['status'], config.AUTH_FAIL)
+
         # Test invalid date.
         um = json.loads(s.getMessages('recipient', 'secret', 'sender', [], '123512512351235', None))
         self.assertEqual(um['status'], config.ERROR)
