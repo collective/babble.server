@@ -152,6 +152,18 @@ class ChatService(Folder):
         folder._setObject(id, ChatRoom(id, participants))
 
 
+    def editChatRoom(self, id, participants):
+        try:
+            chatroom = self._getChatRoom(id)
+        except KeyError:
+            return json.dumps({
+                    'status': config.NOT_FOUND, 
+                    'errmsg': "Chatroom '%s' doesn't exist" % id, 
+                    })
+        chatroom.participents = participants
+        return json.dumps({'status': config.SUCCESS})
+
+
     def _authenticate(self, username, password):
         """ Authenticate the user with username and password """
         return self.acl_users.authenticate(username, password, self.REQUEST)
@@ -317,10 +329,12 @@ class ChatService(Folder):
             return {'status': config.ERROR, 
                     'errmsg': 'Invalid date format',}
 
-        if partner:
+        if partner == '*':
+            conversations = self._getConversationsFor(username)
+        elif partner:
             conversations = [self._getConversation(username, partner)]
         else:
-            conversations = self._getConversationsFor(username)
+            conversations = []
 
         if chatrooms:
             try:
@@ -349,8 +363,10 @@ class ChatService(Folder):
 
             Parameter values:
             -----------------
-            partner: None or string
-                If None, return from all partners.
+            partner: None or '*' or a username. 
+                If None, don't return from any partners. 
+                If *, return from all partners.
+                Else, return only from the user with name given
 
             chatrooms: list of strings
 
@@ -370,6 +386,11 @@ class ChatService(Folder):
 
     def getNewMessages(self, username, password, partner, chatrooms):
         """ Get all messages since the user's last fetch.
+
+            partner: None or '*' or a username. 
+                If None, don't return from any partners. 
+                If *, return from all partners.
+                Else, return only from the user with name given
         """
         if self._authenticate(username, password) is None:
             log.error('getMessages: authentication failed')
@@ -388,6 +409,11 @@ class ChatService(Folder):
 
     def getUnclearedMessages(self, username, password, partner, chatrooms, clear):
         """ Get all messages since the last clearance date.
+
+            partner: None or '*' or a username. 
+                If None, don't return from any partners. 
+                If *, return from all partners.
+                Else, return only from the user with name given
         """
         if self._authenticate(username, password) is None:
             log.error('getMessages: authentication failed')

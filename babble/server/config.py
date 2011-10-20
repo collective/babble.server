@@ -3,6 +3,7 @@ SUCCESS = 0
 AUTH_FAIL = -1
 TIMEOUT = 1
 ERROR = SERVER_FAULT = 2
+NOT_FOUND = 3
 
 from datetime import datetime
 from pytz import utc
