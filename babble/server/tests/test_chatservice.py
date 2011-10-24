@@ -577,6 +577,7 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(db['chatroom_messages']['chatroom1'][0][0], 'user2')
         self.assertEqual(db['chatroom_messages']['chatroom1'][0][1], 'another msg')
         self.assertEqual(db['chatroom_messages']['chatroom1'][0][2], message2_timestamp)
+        self.assertEqual(db['messages'], {})
 
         db = s.getMessages( 'user4', 'secret', None, 'chatroom1', config.NULL_DATE, None,)
         self.assertEqual(db, um)

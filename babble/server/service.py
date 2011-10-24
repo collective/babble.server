@@ -17,7 +17,7 @@ from Products.BTreeFolder2.BTreeFolder2 import manage_addBTreeFolder
 from interfaces import IChatService
 from conversation import Conversation
 from chatroom import ChatRoom
-from utils import hash_encode
+from utils import hashed
 import config
 
 log = logging.getLogger('babble.server/service.py')
@@ -119,7 +119,7 @@ class ChatService(Folder):
     def _getConversation(self, user1, user2):
         """ """
         folder = self._getConversationsFolder()
-        id = '.'.join(sorted([hash_encode(user1), hash_encode(user2)]))
+        id = '.'.join(sorted([hashed(user1), hashed(user2)]))
         if not folder.hasObject(id):
             folder._setObject(id, Conversation(id, user1, user2))
         return folder._getOb(id)
@@ -128,7 +128,7 @@ class ChatService(Folder):
     def _getConversationsFor(self, username):
         """ """
         f = self._getConversationsFolder()
-        username = hash_encode(username)
+        username = hashed(username)
         return [f._getOb(i) for i in f.objectIds() if username in i.split('.')]
 
 
@@ -138,21 +138,44 @@ class ChatService(Folder):
             ids= [ids]
         crs = []
         for c in ids:
-            crs.append(folder._getOb(c))
+            crs.append(folder._getOb(hashed(c)))
         return crs
 
 
     def _getChatRoom(self, id):
         folder = self._getChatRoomsFolder()
-        return folder._getOb(id)
+        return folder._getOb(hashed(id))
 
 
-    def createChatRoom(self, id, participants):
+    def _getChatRoomsFor(self, username):
         folder = self._getChatRoomsFolder()
-        folder._setObject(id, ChatRoom(id, participants))
+        rooms = []
+        for chatroom in folder.values():
+            if username in chatroom.participants:
+                rooms.append(chatroom)
+        return rooms
 
 
-    def editChatRoom(self, id, participants):
+    def createChatRoom(self, username, password, path, participants):
+        """ Chat rooms, unlike members, don't necessarily have unique IDs. They
+            do however have unique paths. We hash the path to get a unique id.
+        """
+        if self._authenticate(username, password) is None:
+            log.error('getMessages: authentication failed')
+            return json.dumps({'status': config.AUTH_FAIL})
+
+        folder = self._getChatRoomsFolder()
+        id = hashed(path)
+        folder._setObject(id, ChatRoom(id, path, participants))
+        return json.dumps({'status': config.SUCCESS})
+
+
+    def editChatRoom(self, username, password, id, participants):
+        """ """
+        if self._authenticate(username, password) is None:
+            log.error('getMessages: authentication failed')
+            return json.dumps({'status': config.AUTH_FAIL})
+
         try:
             chatroom = self._getChatRoom(id)
         except KeyError:
@@ -161,6 +184,17 @@ class ChatService(Folder):
                     'errmsg': "Chatroom '%s' doesn't exist" % id, 
                     })
         chatroom.participents = participants
+        return json.dumps({'status': config.SUCCESS})
+
+
+    def removeChatRoom(self, username, password, id):
+        """ """
+        if self._authenticate(username, password) is None:
+            log.error('getMessages: authentication failed')
+            return json.dumps({'status': config.AUTH_FAIL})
+
+        parent = self._getChatRoomsFolder()
+        parent.manage_delObjects([hashed(id)])
         return json.dumps({'status': config.SUCCESS})
 
 
@@ -316,6 +350,9 @@ class ChatService(Folder):
 
             This is an internal method that assumes authentication has 
             been done.
+
+            partner == '*' means all partners
+            chatrooms == '*' means all chatrooms
         """ 
         if since is None:
             since = config.NULL_DATE
@@ -336,7 +373,9 @@ class ChatService(Folder):
         else:
             conversations = []
 
-        if chatrooms:
+        if chatrooms == '*':
+            chatrooms = self._getChatRoomsFor(username)
+        else:
             try:
                 chatrooms = self._getChatRooms(chatrooms)
             except KeyError, e:
@@ -378,13 +417,14 @@ class ChatService(Folder):
             return json.dumps({'status': config.AUTH_FAIL})
 
         result = self._getMessages(username, partner, chatrooms, since, until)
-        if result['status'] == config.SUCCESS:
+        if result['status'] == config.SUCCESS and \
+                (result['messages'] or result['chatroom_messages']):
             user = self.acl_users.getUser(username)
             user.last_received_date = result['last_msg_date']
         return json.dumps(result)
 
 
-    def getNewMessages(self, username, password, partner, chatrooms):
+    def getNewMessages(self, username, password):
         """ Get all messages since the user's last fetch.
 
             partner: None or '*' or a username. 
@@ -401,9 +441,14 @@ class ChatService(Folder):
             user.last_received_date = config.NULL_DATE
         since = user.last_received_date
 
-        result = self._getMessages(username, partner, chatrooms, since, None)
-        if result['status'] == config.SUCCESS and result['messages']:
+        result = self._getMessages(username, '*', '*', since, None)
+
+        # XXX: Test!
+        if result['status'] == config.SUCCESS and \
+                (result['messages'] or result['chatroom_messages']):
+            log.info('getNewMessages: %s' % user.last_received_date)
             user.last_received_date = result['last_msg_date']
+
         return json.dumps(result)
 
 
@@ -425,8 +470,12 @@ class ChatService(Folder):
         since = user.last_cleared_date
 
         result = self._getMessages(username, partner, chatrooms, since, None)
-        if clear and result['status'] == config.SUCCESS:
-            user.last_cleared_date = result['last_msg_date']
+        if result['status'] == config.SUCCESS and \
+                (result['messages'] or result['chatroom_messages']):
+            # XXX: Test this!
+            user.last_received_date = result['last_msg_date']
+            if clear:
+                user.last_cleared_date = result['last_msg_date']
         return json.dumps(result)
 
 
