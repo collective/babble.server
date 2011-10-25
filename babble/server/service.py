@@ -450,10 +450,10 @@ class ChatService(Folder):
 
         result = self._getMessages(username, '*', '*', since, None)
 
-        # XXX: Test!
+        # XXX: Test this!
         if result['status'] == config.SUCCESS and \
                 (result['messages'] or result['chatroom_messages']):
-            log.debug('getNewMessages: %s' % user.last_received_date)
+            log.info('getNewMessages: %s' % user.last_received_date)
             user.last_received_date = result['last_msg_date']
 
         return json.dumps(result)
@@ -479,8 +479,14 @@ class ChatService(Folder):
         result = self._getMessages(username, partner, chatrooms, since, None)
         if result['status'] == config.SUCCESS and \
                 (result['messages'] or result['chatroom_messages']):
+
             # XXX: Test this!
-            user.last_received_date = result['last_msg_date']
+            if result['last_msg_date'] > user.last_received_date:
+                # The last_msg_date is not necessarily bigger, since
+                # getUnclearedMessages only fetches for a specific partner
+                # and/or chatrooms.
+                user.last_received_date = result['last_msg_date']
+
             if clear:
                 user.last_cleared_date = result['last_msg_date']
         return json.dumps(result)
