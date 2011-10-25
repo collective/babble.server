@@ -31,9 +31,9 @@ class Conversation(BTreeFolder2):
         return self._getOb(owner)
 
 
-    def addMessage(self, text, author):
+    def addMessage(self, text, author, fullname):
         """ Add a message to the Conversation """
         mbox = self._getMessageBox(author)
-        return mbox.addMessage(text, author)
+        return mbox.addMessage(text, author, fullname)
 
 

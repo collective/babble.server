@@ -268,7 +268,7 @@ class ChatService(Folder):
         return json.dumps({'status': config.SUCCESS, 'online_users': ou})
 
 
-    def sendMessage(self, username, password, recipient, message):
+    def sendMessage(self, username, password, fullname, recipient, message):
         """ Sends a message to recipient
 
             A message is added to the messagebox of both the sender and
@@ -282,14 +282,14 @@ class ChatService(Folder):
                     })
 
         conversation = self._getConversation(username, recipient)
-        last_msg_date = conversation.addMessage(message, username).time
+        last_msg_date = conversation.addMessage(message, username, fullname).time
         return json.dumps({
                 'status': config.SUCCESS, 
                 'last_msg_date': last_msg_date
                 })
 
 
-    def sendChatRoomMessage(self, username, password, room_name, message):
+    def sendChatRoomMessage(self, username, password, fullname, room_name, message):
         """ Sends a message to a chatroom """
         if self._authenticate(username, password) is None:
             log.error('sendMessage: authentication failed')
@@ -305,7 +305,7 @@ class ChatService(Folder):
                     'errmsg': "Chatroom '%s' doesn't exist" % room_name, 
                     })
 
-        last_msg_date = chatroom.addMessage(message, username).time
+        last_msg_date = chatroom.addMessage(message, username, fullname).time
         return json.dumps({
                 'status': config.SUCCESS, 
                 'last_msg_date': last_msg_date
@@ -334,7 +334,14 @@ class ChatService(Folder):
             
             msg_tuples.sort()
             for i, m in msg_tuples:
-                mbox_messages.append((m.author, m.text, m.time))
+                try:
+                    mbox_messages.append((m.author, m.text, m.time, m.fullname))
+                except AttributeError as e:
+                    # BBB
+                    if str(e) == 'fullname':
+                        mbox_messages.append((m.author, m.text, m.time, m.author))
+                    else:
+                        raise AttributeError, e
 
                 if m.time > last_msg_date:
                     last_msg_date = m.time 

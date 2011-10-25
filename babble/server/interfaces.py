@@ -115,14 +115,14 @@ class IUser(Interface):
 class IMessageBox(Interface):
     """ A container for messages """
 
-    def addMessage(self, message, author, timestamp):
+    def addMessage(self, message, author, fullname):
         """ Add a message to the MessageBox """
 
 
 class IConversation(Interface):
     """ A conversation between two or more users """
 
-    def addMessage(self, message, author, timestamp):
+    def addMessage(self, message, author, fullname):
         """ Add a message to the Conversation """
 
 

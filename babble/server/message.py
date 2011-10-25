@@ -10,12 +10,13 @@ class Message(SimpleItem):
 
     implements(IMessage)
 
-    def __init__(self, message, author):
+    def __init__(self, message, author, fullname):
         """ Initialize message 
         """
         self._cleared = False
         self.author = author
         self.text = message
+        self.fullname = fullname
 
         ts = time.time()
         self.id = '%f' % ts
