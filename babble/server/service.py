@@ -453,7 +453,7 @@ class ChatService(Folder):
         # XXX: Test!
         if result['status'] == config.SUCCESS and \
                 (result['messages'] or result['chatroom_messages']):
-            log.info('getNewMessages: %s' % user.last_received_date)
+            log.debug('getNewMessages: %s' % user.last_received_date)
             user.last_received_date = result['last_msg_date']
 
         return json.dumps(result)
