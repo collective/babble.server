@@ -155,13 +155,30 @@ class ChatService(Folder):
                 rooms.append(chatroom)
         return rooms
 
+    
+    def addChatRoomParticipant(self, username, password, path, participant):
+        """ """
+        if self._authenticate(username, password) is None:
+            log.error('addChatRoomParticipant: authentication failed')
+            return json.dumps({'status': config.AUTH_FAIL})
+        try:
+            chatroom = self._getChatRoom(path)
+        except KeyError:
+            return json.dumps({
+                    'status': config.NOT_FOUND, 
+                    'errmsg': "Chatroom '%s' doesn't exist" % id, 
+                    })
+        if participant not in chatroom.participants:
+            chatroom._addParticipant(participant)
+        return json.dumps({'status': config.SUCCESS})
+
 
     def createChatRoom(self, username, password, path, participants):
         """ Chat rooms, unlike members, don't necessarily have unique IDs. They
             do however have unique paths. We hash the path to get a unique id.
         """
         if self._authenticate(username, password) is None:
-            log.error('getMessages: authentication failed')
+            log.error('createChatRoom: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
 
         folder = self._getChatRoomsFolder()
@@ -175,7 +192,6 @@ class ChatService(Folder):
         if self._authenticate(username, password) is None:
             log.error('getMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
-
         try:
             chatroom = self._getChatRoom(id)
         except KeyError:
@@ -183,7 +199,10 @@ class ChatService(Folder):
                     'status': config.NOT_FOUND, 
                     'errmsg': "Chatroom '%s' doesn't exist" % id, 
                     })
-        chatroom.participents = participants
+        chatroom.participants = participants
+        self.partner = {}
+        for p in participants:
+            self.partner[p] = self.client_path
         return json.dumps({'status': config.SUCCESS})
 
 
@@ -423,12 +442,11 @@ class ChatService(Folder):
             log.error('getMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
 
-        result = self._getMessages(username, partner, chatrooms, since, until)
-        if result['status'] == config.SUCCESS and \
-                (result['messages'] or result['chatroom_messages']):
-            user = self.acl_users.getUser(username)
-            user.last_received_date = result['last_msg_date']
-        return json.dumps(result)
+        return json.dumps(self._getMessages(
+                                        username, 
+                                        partner, 
+                                        chatrooms, 
+                                        since, until))
 
 
     def getNewMessages(self, username, password):
@@ -440,7 +458,7 @@ class ChatService(Folder):
                 Else, return only from the user with name given
         """
         if self._authenticate(username, password) is None:
-            log.error('getMessages: authentication failed')
+            log.error('getNewMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
 
         user = self.acl_users.getUser(username)
@@ -468,7 +486,7 @@ class ChatService(Folder):
                 Else, return only from the user with name given
         """
         if self._authenticate(username, password) is None:
-            log.error('getMessages: authentication failed')
+            log.error('getUnclearedMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
 
         user = self.acl_users.getUser(username)
