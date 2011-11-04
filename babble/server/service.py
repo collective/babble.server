@@ -199,10 +199,11 @@ class ChatService(Folder):
                     'status': config.NOT_FOUND, 
                     'errmsg': "Chatroom '%s' doesn't exist" % id, 
                     })
+
         chatroom.participants = participants
-        self.partner = {}
+        chatroom.partner = {}
         for p in participants:
-            self.partner[p] = self.client_path
+            chatroom.partner[p] = chatroom.client_path
         return json.dumps({'status': config.SUCCESS})
 
 
