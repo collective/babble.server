@@ -1,10 +1,11 @@
 Changelog
 =========
 
-1.0b4 (unreleased)
+1.0b4 (2011-11-20)
 ------------------
 
-- Nothing changed yet.
+- New feature: ChatRoom objects, for multi-person conversations. [jcbrand]
+- More cleanup and refactoring of the API. [jcbrand]
 
 
 1.0b3 (2011-10-18)
