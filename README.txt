@@ -20,7 +20,7 @@ Additional info:
 ----------------
 
 For additional info, please read the documentation at 
-http://opkode.net/babbledocs/babble.server/index.html 
+http://babblechat.org/babble.server/index.html
 
 
 Important notice:
