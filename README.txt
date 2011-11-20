@@ -13,7 +13,7 @@ Features:
 - User accounts: users must be registered for the chat service
 - Security: most messaging actions requires the user to authenticate 
 - Web service: all public API methods return JSON strings.
-- 100% test coverage.
+- 100% test coverage. (Non-beta releases only).
 
 
 Additional info:
