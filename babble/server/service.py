@@ -312,7 +312,7 @@ class ChatService(Folder):
     def sendChatRoomMessage(self, username, password, fullname, room_name, message):
         """ Sends a message to a chatroom """
         if self._authenticate(username, password) is None:
-            log.error('sendMessage: authentication failed')
+            log.error('sendChatRoomMessage: authentication failed')
             return json.dumps({
                     'status': config.AUTH_FAIL, 
                     'last_msg_date': config.NULL_DATE
