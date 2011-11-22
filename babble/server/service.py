@@ -155,22 +155,29 @@ class ChatService(Folder):
                 rooms.append(chatroom)
         return rooms
 
-    
-    def addChatRoomParticipant(self, username, password, path, participant):
-        """ """
-        if self._authenticate(username, password) is None:
-            log.error('addChatRoomParticipant: authentication failed')
-            return json.dumps({'status': config.AUTH_FAIL})
-        try:
-            chatroom = self._getChatRoom(path)
-        except KeyError:
-            return json.dumps({
-                    'status': config.NOT_FOUND, 
-                    'errmsg': "Chatroom '%s' doesn't exist" % id, 
-                    })
-        if participant not in chatroom.participants:
-            chatroom._addParticipant(participant)
-        return json.dumps({'status': config.SUCCESS})
+
+    def _authenticate(self, username, password):
+        """ Authenticate the user with username and password """
+        return self.acl_users.authenticate(username, password, self.REQUEST)
+
+
+    def _isOnline(self, username):
+        """ Determine whether the user is (probably) currently online
+
+            Get the last time that the user updated the 'user access dict' and
+            see whether this time is less than 1 minute in the past.
+
+            If yes, then we assume the user is online, otherwise not.
+        """
+        uad = self._getUserAccessDict()
+        last_confirmed_date = uad.get(username, datetime.min)
+        delta = timedelta(minutes=1)
+        cutoff_date = datetime.now() - delta
+        return last_confirmed_date > cutoff_date
+
+
+    def _isRegistered(self, username):
+        return self.acl_users.getUser(username) and True or False
 
 
     def createChatRoom(self, username, password, path, participants):
@@ -184,6 +191,27 @@ class ChatService(Folder):
         folder = self._getChatRoomsFolder()
         id = hashed(path)
         folder._setObject(id, ChatRoom(id, path, participants))
+        return json.dumps({'status': config.SUCCESS})
+
+    
+    def addChatRoomParticipant(self, username, password, path, participant):
+        """ Add another user as a participant in a chat room
+        """
+        if self._authenticate(username, password) is None or \
+                not self._isRegistered(participant):
+
+            log.error('addChatRoomParticipant: authentication failed')
+            return json.dumps({'status': config.AUTH_FAIL})
+
+        try:
+            chatroom = self._getChatRoom(path)
+        except KeyError:
+            return json.dumps({
+                    'status': config.NOT_FOUND, 
+                    'errmsg': "Chatroom '%s' doesn't exist" % id, 
+                    })
+        if participant not in chatroom.participants:
+            chatroom._addParticipant(participant)
         return json.dumps({'status': config.SUCCESS})
 
 
@@ -218,26 +246,6 @@ class ChatService(Folder):
         return json.dumps({'status': config.SUCCESS})
 
 
-    def _authenticate(self, username, password):
-        """ Authenticate the user with username and password """
-        return self.acl_users.authenticate(username, password, self.REQUEST)
-
-
-    def _isOnline(self, username):
-        """ Determine whether the user is (probably) currently online
-
-            Get the last time that the user updated the 'user access dict' and
-            see whether this time is less than 1 minute in the past.
-
-            If yes, then we assume the user is online, otherwise not.
-        """
-        uad = self._getUserAccessDict()
-        last_confirmed_date = uad.get(username, datetime.min)
-        delta = timedelta(minutes=1)
-        cutoff_date = datetime.now() - delta
-        return last_confirmed_date > cutoff_date
-
-
     def confirmAsOnline(self, username):
         """ Confirm that the user is currently online by updating the 'user
             access dict'
@@ -268,8 +276,9 @@ class ChatService(Folder):
 
     def isRegistered(self, username):
         """ Check whether the user is registered via acl_users """
-        is_registered = self.acl_users.getUser(username) and True or False
-        return json.dumps({'status': config.SUCCESS, 'is_registered': is_registered})
+        return json.dumps({
+                    'status': config.SUCCESS, 
+                    'is_registered': self._isRegistered(username)})
 
 
     def setUserPassword(self, username, password):
@@ -290,9 +299,6 @@ class ChatService(Folder):
 
     def sendMessage(self, username, password, fullname, recipient, message):
         """ Sends a message to recipient
-
-            A message is added to the messagebox of both the sender and
-            recipient.
         """
         if self._authenticate(username, password) is None:
             log.error('sendMessage: authentication failed')
@@ -499,8 +505,8 @@ class ChatService(Folder):
         if result['status'] == config.SUCCESS and \
                 (result['messages'] or result['chatroom_messages']):
 
-            # XXX: Test this!
-            if result['last_msg_date'] > user.last_received_date:
+            if not hasattr(user, 'last_received_date') or \
+                    result['last_msg_date'] > user.last_received_date:
                 # The last_msg_date is not necessarily bigger, since
                 # getUnclearedMessages only fetches for a specific partner
                 # and/or chatrooms.

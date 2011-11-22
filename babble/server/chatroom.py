@@ -28,11 +28,6 @@ class ChatRoom(BTreeFolder2):
         self.partner[user] = self.client_path
 
 
-    def _removeParticipant(self, user):
-        """ """
-        del self.participants[self.participants.index(user)]
-
-
     def _getMessageBox(self, owner):
         """ The MessageBox is a container that stores
             the messages sent by a user.

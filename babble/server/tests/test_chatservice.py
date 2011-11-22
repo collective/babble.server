@@ -4,6 +4,7 @@ from pytz import utc
 
 from Testing import ZopeTestCase as ztc
 from ZPublisher import NotFound
+from zExceptions import Unauthorized
 from persistent.dict import PersistentDict
 
 from Products.TemporaryFolder.TemporaryFolder import SimpleTemporaryContainer
@@ -209,6 +210,21 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEquals(ou['online_users'], ['username', 'another'])
 
 
+    def test_chatroom(self):
+        s = self.chatservice
+        s.register('user1', 'secret')
+        s.register('user2', 'secret')
+
+        chatroom1_path = '/Plone/chatrooms/chatroom1'
+        resp = json.loads(s.createChatRoom('user1', 'secret', chatroom1_path, ['user1']))
+        self.assertEqual(resp['status'], config.SUCCESS)
+
+        # test sanity check in _getMessageBox when checking for a messagebox of
+        # a user that is not a participant.
+        chatroom = s._getChatRoom(chatroom1_path)
+        self.assertRaises(Unauthorized, chatroom._getMessageBox, 'user2')
+
+
     def test_messaging(self):
         """ Test sendMessage, getMessages, getNewMessages and related methods """
         s = self.chatservice
@@ -301,7 +317,6 @@ class TestChatService(ztc.ZopeTestCase):
         # Test exact 'until' date. This must return the message
         db = json.loads(s.getMessages( 'recipient', 'secret', '*', [], None, um['last_msg_date'], ))
         self.assertEqual(db, um)
-
 
         # Test that the sender also gets the same results
         db = json.loads(s.getMessages( 'sender', 'secret', '*', [], None, um['last_msg_date'], ))
@@ -444,6 +459,12 @@ class TestChatService(ztc.ZopeTestCase):
         user = s.acl_users.getUser('recipient')
         self.assertEqual(um['last_msg_date'], user.last_received_date)
 
+        # For completeness, test getNewMessages when the user doesn't have a last_received_date
+        del user.last_received_date
+        resp1 = json.loads(s.getNewMessages('recipient', 'secret'))
+        resp2 = json.loads(s.getMessages('recipient', 'secret', '*', [], config.NULL_DATE, datetime.datetime.now(utc).isoformat()))
+        self.assertEqual(resp1, resp2)
+
         # Test getNewMessages. sender2 sent a message but didn't fetch it yet.
         # So we should be able to get it now.
         # We also send a message from sender... so we should get 2 msgs now.
@@ -462,10 +483,12 @@ class TestChatService(ztc.ZopeTestCase):
 
         user = s.acl_users.getUser('sender2')
         self.assertEqual(um['last_msg_date'], user.last_received_date)
-        last_received = user.last_received_date
 
         # last_msg_date must be the same date as sender's message, which was last
         self.assertEqual(um['last_msg_date'], um['messages']['sender'][0][2])
+
+        last_received = user.last_received_date
+        last_cleared = user.last_cleared_date
 
         # Now getNewMessages must return nothing
         um = json.loads(s.getNewMessages('sender2', 'secret'))
@@ -473,6 +496,26 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(um['last_msg_date'], config.NULL_DATE)
         self.assertEqual(user.last_received_date, last_received)
 
+        # Some more getUnclearedMessages tests
+        resp1 = json.loads(s.getUnclearedMessages('sender2', 'secret', '*', [], False))
+        self.assertEqual(user.last_received_date, last_received)
+        self.assertEqual(user.last_cleared_date, last_cleared)
+
+        del user.last_received_date
+        resp2 = json.loads(s.getUnclearedMessages('sender2', 'secret', '*', [], False))
+        self.assertEqual(user.last_received_date, last_received)
+        self.assertEqual(user.last_cleared_date, last_cleared)
+
+        del user.last_cleared_date
+        resp3 = json.loads(s.getUnclearedMessages('sender2', 'secret', '*', [], False))
+        self.assertEqual(user.last_received_date, last_received)
+        self.assertEqual(user.last_cleared_date, last_cleared)
+
+        resp = json.loads(s.getUnclearedMessages('sender2', 'secret', '*', [], True))
+        self.assertEqual(user.last_received_date, resp['last_msg_date'])
+
+        resp = json.loads(s.getUnclearedMessages('sender2', 'secret', '*', [], True))
+        self.assertEqual(resp['messages'], {})
 
 
     def test_chatroom_messaging(self):
@@ -485,6 +528,8 @@ class TestChatService(ztc.ZopeTestCase):
         s.register('user3', 'secret')
         s.register('user4', 'secret')
 
+        chatroom1_path = '/Plone/chatrooms/chatroom1'
+
         # First test with a non-existing chatroom.
         um = json.loads(s.getMessages('user1', 'secret', None, ['non-existing-chatroom'], config.NULL_DATE, None,))
         self.assertEqual(um['status'], config.ERROR)
@@ -496,30 +541,67 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(um['errmsg'], "Chatroom 'ce40e7b6bdd89c5c80cc27ee4371f32387d3a92068d1e75ddf8496ad' doesn't exist")
 
         # Ok, now let's create a ChatRoom
-        s.createChatRoom('user1', 'secret', 'chatroom1', ['user1', 'user2', 'user3', 'user4'])
+        resp = json.loads(s.createChatRoom('unkown_user', 'secret', chatroom1_path, ['user1']))
+        self.assertEqual(resp['status'], config.AUTH_FAIL)
+
+        resp = json.loads(s.createChatRoom('user1', 'secret', chatroom1_path, ['user1']))
+        self.assertEqual(resp['status'], config.SUCCESS)
+
+        self.assertEqual(s._getChatRoom(chatroom1_path).participants, ['user1'])
+
+        # Lets add some participants. Authentication is required, but this can
+        # be any registered user.
+        resp = json.loads(s.addChatRoomParticipant('user1', 'secret', chatroom1_path, 'unregistered_user'))
+        self.assertEqual(resp['status'], config.AUTH_FAIL)
+        self.assertEqual(s._getChatRoom(chatroom1_path).participants, ['user1'])
+
+        resp = json.loads(s.addChatRoomParticipant('unknown_user', 'secret', chatroom1_path, 'user2'))
+        self.assertEqual(resp['status'], config.AUTH_FAIL)
+        self.assertEqual(s._getChatRoom(chatroom1_path).participants, ['user1'])
+
+        resp = json.loads(s.addChatRoomParticipant('user1', 'secret', 'bogus/path', 'user2'))
+        self.assertEqual(resp['status'], config.NOT_FOUND)
+        self.assertEqual(s._getChatRoom(chatroom1_path).participants, ['user1'])
+
+        resp = json.loads(s.addChatRoomParticipant('user1', 'secret', chatroom1_path, 'user2'))
+        self.assertEqual(resp['status'], config.SUCCESS)
+        self.assertEqual(s._getChatRoom(chatroom1_path).participants, ['user1', 'user2'])
+
+        # Now we add a new list of participants by calling editChatRoom
+        participants = ['user1','user2', 'user3', 'user4']
+
+        resp = json.loads(s.editChatRoom('unknown_user', 'secret', chatroom1_path, participants))
+        self.assertEqual(resp['status'], config.AUTH_FAIL)
+
+        resp = json.loads(s.editChatRoom('user1', 'secret', 'bogus/path', participants))
+        self.assertEqual(resp['status'], config.NOT_FOUND)
+
+        resp = json.loads(s.editChatRoom('user1', 'secret', chatroom1_path, participants))
+        self.assertEqual(resp['status'], config.SUCCESS)
+        self.assertEqual(s._getChatRoom(chatroom1_path).participants, ['user1', 'user2', 'user3', 'user4'])
         
         # test valid message sending
-        response = json.loads(s.sendChatRoomMessage('user1', 'secret', 'User 1', 'chatroom1', 'This is the message'))
-        self.assertEqual(response['status'], config.SUCCESS)
-        self.assertTrue(bool(config.VALID_DATE_REGEX.search(response['last_msg_date'])))
-        message_timestamp = response['last_msg_date']
+        resp = json.loads(s.sendChatRoomMessage('user1', 'secret', 'User 1', chatroom1_path, 'This is the message'))
+        self.assertEqual(resp['status'], config.SUCCESS)
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(resp['last_msg_date'])))
+        message_timestamp = resp['last_msg_date']
 
         # test message sending to non-existent chatroom
-        response = json.loads(s.sendChatRoomMessage('user1', 'secret', 'User 1', 'non-existing-chatroom', 'This is the message'))
-        self.assertEqual(response['status'], config.ERROR)
-        self.assertEqual(response['errmsg'], "Chatroom 'non-existing-chatroom' doesn't exist")
+        resp = json.loads(s.sendChatRoomMessage('user1', 'secret', 'User 1', 'non-existing-chatroom', 'This is the message'))
+        self.assertEqual(resp['status'], config.ERROR)
+        self.assertEqual(resp['errmsg'], "Chatroom 'non-existing-chatroom' doesn't exist")
 
         # test message sender with invalid credentials
-        response = json.loads(s.sendChatRoomMessage('user1', 'wrongpass', 'User 1', 'chatroom1', 'This is the message'))
-        self.assertEqual(response['status'], config.AUTH_FAIL)
+        resp = json.loads(s.sendChatRoomMessage('user1', 'wrongpass', 'User 1', chatroom1_path, 'This is the message'))
+        self.assertEqual(resp['status'], config.AUTH_FAIL)
 
         # Now, let's test message fetching
-        um = json.loads(s.getMessages( 'user1', 'secret', None, ['chatroom1'], config.NULL_DATE, None,))
+        um = json.loads(s.getMessages( 'user1', 'secret', None, [chatroom1_path], config.NULL_DATE, None,))
         self.assertEqual(um['status'], config.SUCCESS)
         # The returned datastructure looks as follows:
         #
         # {   'chatroom_messages': 
-        #         {'chatroom1': [
+        #         {'Plone/chatrooms/chatroom1': [
         #                 ['user1', 'This is the message', '2011-10-18T20:16:27.592127+00:00']
         #             ]
         #         },
@@ -531,78 +613,88 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(um['last_msg_date'], message_timestamp)
         msgdict = um['chatroom_messages'] 
         # Test that messages from only one chatroom was returned
-        self.assertEqual(msgdict.keys(), ['chatroom1'])
+        self.assertEqual(msgdict.keys(), [chatroom1_path])
         # Test that only one message was received from this user
-        self.assertEqual(len(msgdict['chatroom1']), 1)
+        self.assertEqual(len(msgdict[chatroom1_path]), 1)
         # Test that the message tuple has 3 elements
-        self.assertEqual(len(msgdict['chatroom1'][0]), 4)
+        self.assertEqual(len(msgdict[chatroom1_path][0]), 4)
         # Test the message's last_msg_date
-        self.assertTrue(bool(config.VALID_DATE_REGEX.search(msgdict['chatroom1'][0][2])))
-        self.assertEqual(msgdict['chatroom1'][0][2], message_timestamp)
-        self.assertEqual(msgdict['chatroom1'][0][0], 'user1')
-        self.assertEqual(msgdict['chatroom1'][0][1], 'This is the message')
+        self.assertTrue(bool(config.VALID_DATE_REGEX.search(msgdict[chatroom1_path][0][2])))
+        self.assertEqual(msgdict[chatroom1_path][0][2], message_timestamp)
+        self.assertEqual(msgdict[chatroom1_path][0][0], 'user1')
+        self.assertEqual(msgdict[chatroom1_path][0][1], 'This is the message')
 
         # Now check if we get the same response for the other participants in
         # the chatroom
-        db = json.loads(s.getMessages( 'user2', 'secret', None, ['chatroom1'], None, None,))
+        db = json.loads(s.getMessages( 'user2', 'secret', None, [chatroom1_path], None, None,))
         self.assertEqual(db, um)
-        db = json.loads(s.getMessages( 'user3', 'secret', None, ['chatroom1'], None, None,))
+        db = json.loads(s.getMessages( 'user3', 'secret', None, [chatroom1_path], None, None,))
         self.assertEqual(db, um)
-        db = json.loads(s.getMessages( 'user4', 'secret', None, ['chatroom1'], None, None,))
+        db = json.loads(s.getMessages( 'user4', 'secret', None, [chatroom1_path], None, None,))
         self.assertEqual(db, um)
 
         # Test exact 'since' dates.
-        db = json.loads(s.getMessages( 'user1', 'secret', None, ['chatroom1'], um['last_msg_date'], None,))
+        db = json.loads(s.getMessages( 'user1', 'secret', None, [chatroom1_path], um['last_msg_date'], None,))
         self.assertEqual(db['messages'], {})
         self.assertEqual(db['chatroom_messages'], {})
 
         # Test exact 'until' date. This must return the message
-        db = json.loads(s.getMessages( 'user1', 'secret', None, ['chatroom1'], None, um['last_msg_date'],))
+        db = json.loads(s.getMessages( 'user1', 'secret', None, [chatroom1_path], None, um['last_msg_date'],))
         self.assertEqual(db, um)
 
         # Test getChatRoomMessages with multiple senders. 
-        response = s.sendChatRoomMessage('user2', 'secret', 'User 2', 'chatroom1', 'another msg')
+        response = s.sendChatRoomMessage('user2', 'secret', 'User 2', chatroom1_path, 'another msg')
         response = json.loads(response)
         self.assertEqual(response['status'], config.SUCCESS)
         self.assertEqual(bool(config.VALID_DATE_REGEX.search(response['last_msg_date'])), True)
         message2_timestamp = response['last_msg_date']
 
-        um = s.getMessages( 'user1', 'secret', None, 'chatroom1', config.NULL_DATE, None,)
+        um = s.getMessages( 'user1', 'secret', None, chatroom1_path, config.NULL_DATE, None,)
         mdict = json.loads(um)
         self.assertEqual(mdict['status'], config.SUCCESS)
         self.assertEqual(mdict['last_msg_date'], message2_timestamp)
 
-        db = s.getMessages( 'user2', 'secret', None, 'chatroom1', config.NULL_DATE, None,)
+        db = s.getMessages( 'user2', 'secret', None, chatroom1_path, config.NULL_DATE, None,)
         self.assertEqual(db, um)
-        db = s.getMessages( 'user3', 'secret', None, 'chatroom1', config.NULL_DATE, None,)
+        db = s.getMessages( 'user3', 'secret', None, chatroom1_path, config.NULL_DATE, None,)
         self.assertEqual(db, um)
 
         db = json.loads(s.getNewMessages( 'user4', 'secret'))
         self.assertEqual(db['status'], config.SUCCESS)
         self.assertEqual(db['last_msg_date'], message2_timestamp)
 
-        self.assertEqual(db['chatroom_messages']['chatroom1'][0][0], 'user1')
-        self.assertEqual(db['chatroom_messages']['chatroom1'][0][1], 'This is the message')
-        self.assertEqual(db['chatroom_messages']['chatroom1'][0][2], message_timestamp)
+        self.assertEqual(db['chatroom_messages'][chatroom1_path][0][0], 'user1')
+        self.assertEqual(db['chatroom_messages'][chatroom1_path][0][1], 'This is the message')
+        self.assertEqual(db['chatroom_messages'][chatroom1_path][0][2], message_timestamp)
 
-        self.assertEqual(db['chatroom_messages']['chatroom1'][1][0], 'user2')
-        self.assertEqual(db['chatroom_messages']['chatroom1'][1][1], 'another msg')
-        self.assertEqual(db['chatroom_messages']['chatroom1'][1][2], message2_timestamp)
+        self.assertEqual(db['chatroom_messages'][chatroom1_path][1][0], 'user2')
+        self.assertEqual(db['chatroom_messages'][chatroom1_path][1][1], 'another msg')
+        self.assertEqual(db['chatroom_messages'][chatroom1_path][1][2], message2_timestamp)
         self.assertEqual(db['messages'], {})
 
-        db = s.getMessages( 'user4', 'secret', None, 'chatroom1', config.NULL_DATE, None,)
+        db = s.getMessages( 'user4', 'secret', None, chatroom1_path, config.NULL_DATE, None,)
         self.assertEqual(db, um)
 
-        db = s.getUnclearedMessages( 'user4', 'secret', None, 'chatroom1', False)
+        db = s.getUnclearedMessages( 'user4', 'secret', None, chatroom1_path, False)
         self.assertEqual(db, um)
 
-        db = s.getUnclearedMessages( 'user4', 'secret', None, 'chatroom1', True)
+        db = s.getUnclearedMessages( 'user4', 'secret', None, chatroom1_path, True)
         self.assertEqual(db, um)
 
-        db = json.loads(s.getUnclearedMessages( 'user4', 'secret', None, 'chatroom1', True))
+        db = json.loads(s.getUnclearedMessages( 'user4', 'secret', None, chatroom1_path, True))
         self.assertEqual(mdict['status'], config.SUCCESS)
         self.assertEqual(db['messages'], {})
         self.assertEqual(db['chatroom_messages'], {})
+
+        # Finally, lets remove the chatroom
+        resp = json.loads(s.removeChatRoom('unkown user', 'secret', chatroom1_path))
+        self.assertEqual(resp['status'], config.AUTH_FAIL)
+
+        resp = json.loads(s.removeChatRoom('user1', 'secret', chatroom1_path))
+        self.assertEqual(resp['status'], config.SUCCESS)
+
+        folder = s._getChatRoomsFolder()
+        self.assertEqual(len(folder.values()), 0)
 
 
 

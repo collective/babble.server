@@ -5,39 +5,28 @@ class IChatService(Interface):
         All the public methods return JSON dicts. Each JSON dict will have a
         'status' field, that can contain one of the following integer values:
 
-        0: Success
-        -1: Authorization failed
+        SUCCESS = 0
+        AUTH_FAIL = -1
+        TIMEOUT = 1
+        ERROR = SERVER_FAULT = 2
+        NOT_FOUND = 3
     """
 
-    def _getUserAccessDict(self):
-        """ The user access dictionary is stored inside a Temporary Folder.
-            A Temporary Folder is kept in RAM and it loses all its contents 
-            whenever the Zope server is restarted.
-
-            The 'user access dictionary' contains usernames as keys and the
-            last date and time that these users have been confirmed to be 
-            online as the values.
-
-            These date values can be used to determine (guess) whether the 
-            user is still currently online.
+    def createChatRoom(self, username, password, path, participants):
+        """ Chat rooms, unlike members, don't necessarily have unique IDs. They
+            do however have unique paths. We hash the path to get a unique id.
         """
 
-    def _getUsersFolder(self):
-        """ The 'Users' folder is a BTreeFolder that contains IUser objects.
-            See babble.server.interfaces.py:IUser
+    def addChatRoomParticipant(self, username, password, path, participant):
+        """ Add another user as a participant in a chat room
         """
 
-    def _authenticate(self, username, password):
-        """ Authenticate the user with username and password """
-
-    def _isOnline(self, username):
-        """ Determine whether the user is (probably) currently online
-
-            Get the last time that the user updated the 'user access dict' and
-            see whether this time is less than 1 minute in the past.
-
-            If yes, then we assume the user is online, otherwise not.
+    def editChatRoom(self, username, password, id, participants):
+        """ To be used to add/remove multiple participants 
         """
+
+    def removeChatRoom(self, username, password, id):
+        """ """
 
     def confirmAsOnline(self, username):
         """ Confirm that the user is currently online by updating the 'user
@@ -73,13 +62,10 @@ class IChatService(Interface):
             returns {'status': int, 'online_users': list}
         """
 
-    def sendMessage(self, username, password, recipient, message):
+    def sendMessage(self, username, password, fullname, recipient, message):
         """ Sends a message to recipient
 
-            A message is added to the messagebox of both the sender and
-            recipient.
-
-            returns {'status': string}
+            returns {'status': string, 'last_msg_date': date}
         """
 
     def getMessages(self, username, password, sender, since, until, cleared, mark_cleared):
