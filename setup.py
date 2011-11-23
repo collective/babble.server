@@ -37,7 +37,6 @@ setup(
         'setuptools',
         'python-dateutil',
         'lxml',
-        'Pillow',
         'simplejson',
         'zope2',
     ],
