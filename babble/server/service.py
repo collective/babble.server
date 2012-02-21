@@ -41,7 +41,7 @@ class ChatService(Folder):
             user is still currently online.
         """
         if not hasattr(self, 'temp_folder'): # Acquisition
-            log.error("The chatservice 'Online Users' folder does not exist!")
+            log.warn("The chatservice 'Online Users' folder does not exist!")
             raise NotFound("/temp_folder does not exist.")
 
         if not self.temp_folder.hasObject('user_access_dict'):
@@ -185,7 +185,7 @@ class ChatService(Folder):
             do however have unique paths. We hash the path to get a unique id.
         """
         if self._authenticate(username, password) is None:
-            log.error('createChatRoom: authentication failed')
+            log.warn('createChatRoom: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
 
         folder = self._getChatRoomsFolder()
@@ -200,7 +200,7 @@ class ChatService(Folder):
         if self._authenticate(username, password) is None or \
                 not self._isRegistered(participant):
 
-            log.error('addChatRoomParticipant: authentication failed')
+            log.warn('addChatRoomParticipant: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
 
         try:
@@ -218,7 +218,7 @@ class ChatService(Folder):
     def editChatRoom(self, username, password, id, participants):
         """ """
         if self._authenticate(username, password) is None:
-            log.error('getMessages: authentication failed')
+            log.warn('getMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
         try:
             chatroom = self._getChatRoom(id)
@@ -238,7 +238,7 @@ class ChatService(Folder):
     def removeChatRoom(self, username, password, id):
         """ """
         if self._authenticate(username, password) is None:
-            log.error('getMessages: authentication failed')
+            log.warn('getMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
 
         parent = self._getChatRoomsFolder()
@@ -301,7 +301,7 @@ class ChatService(Folder):
         """ Sends a message to recipient
         """
         if self._authenticate(username, password) is None:
-            log.error('sendMessage: authentication failed')
+            log.warn('sendMessage: authentication failed')
             return json.dumps({
                     'status': config.AUTH_FAIL, 
                     'last_msg_date': config.NULL_DATE
@@ -318,7 +318,7 @@ class ChatService(Folder):
     def sendChatRoomMessage(self, username, password, fullname, room_name, message):
         """ Sends a message to a chatroom """
         if self._authenticate(username, password) is None:
-            log.error('sendChatRoomMessage: authentication failed')
+            log.warn('sendChatRoomMessage: authentication failed')
             return json.dumps({
                     'status': config.AUTH_FAIL, 
                     'last_msg_date': config.NULL_DATE
@@ -446,7 +446,7 @@ class ChatService(Folder):
             until: iso8601 date string or None
         """
         if self._authenticate(username, password) is None:
-            log.error('getMessages: authentication failed')
+            log.warn('getMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
 
         return json.dumps(self._getMessages(
@@ -465,7 +465,7 @@ class ChatService(Folder):
                 Else, return only from the user with name given
         """
         if self._authenticate(username, password) is None:
-            log.error('getNewMessages: authentication failed')
+            log.warn('getNewMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
 
         user = self.acl_users.getUser(username)
@@ -493,7 +493,7 @@ class ChatService(Folder):
                 Else, return only from the user with name given
         """
         if self._authenticate(username, password) is None:
-            log.error('getUnclearedMessages: authentication failed')
+            log.warn('getUnclearedMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
 
         user = self.acl_users.getUser(username)
