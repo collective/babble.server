@@ -108,12 +108,16 @@ class IMessageBox(Interface):
 class IConversation(Interface):
     """ A conversation between two or more users """
 
-    def addMessage(self, message, author, fullname):
+    def addMessage(self, text, author, fullname):
         """ Add a message to the Conversation """
 
 
 class IChatRoom(Interface):
         """ """ 
+
+    def addMessage(self, text, author, fullname):
+        """ Add a message to the Chatroom """
+
 
 class IMessage(Interface):
     """ A message in a message box """
