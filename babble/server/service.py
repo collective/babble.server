@@ -346,6 +346,11 @@ class ChatService(Folder):
         last_msg_date = config.NULL_DATE
         msgs_dict = {}
         for container in containers:
+            if not container.partner.has_key(username):
+                log.warn(u"The container '%s' doesn't have '%s' as a partner. "
+                         u"This shouldn't happen!" % (container.id, username))
+                continue
+
             msg_tuples = []
             mbox_messages = []
             for mbox in container.values():
