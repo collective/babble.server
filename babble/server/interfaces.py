@@ -113,7 +113,7 @@ class IConversation(Interface):
 
 
 class IChatRoom(Interface):
-        """ """ 
+    """ """ 
 
     def addMessage(self, text, author, fullname):
         """ Add a message to the Chatroom """
