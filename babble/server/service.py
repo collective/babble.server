@@ -9,7 +9,9 @@ from zope.interface import implements
 from AccessControl import ClassSecurityInfo
 from Globals import InitializeClass
 from OFS.Folder import Folder
+from ZODB.POSException import ReadConflictError
 from ZPublisher import NotFound
+
 from persistent.dict import PersistentDict
 
 from Products.BTreeFolder2.BTreeFolder2 import manage_addBTreeFolder
@@ -62,14 +64,18 @@ class ChatService(Folder):
 
         # The cache has expired.
         # Update the cache with the new user_access_dict if it is different
-        uad = self._getUserAccessDict()
-        if getattr(self, '_v_user_access_dict', None) != uad:
-            setattr(self, '_v_user_access_dict', uad.copy())
-
-        # Set a new cache timeout, 30 secs in the future
-        delta = timedelta(seconds=30)
-        cache_timeout = now + delta
-        setattr(self, '_v_cache_timeout', cache_timeout)
+        try:
+            uad = self._getUserAccessDict()
+            if getattr(self, '_v_user_access_dict', None) != uad:
+                setattr(self, '_v_user_access_dict', uad.copy())
+        except ReadConflictError, e:
+            log.warn(e)
+            return getattr(self, '_v_user_access_dict', {})
+        else:
+            # Set a new cache timeout, 60 secs in the future
+            delta = timedelta(seconds=60)
+            cache_timeout = now + delta
+            setattr(self, '_v_cache_timeout', cache_timeout)
         return uad
 
 
@@ -483,7 +489,7 @@ class ChatService(Folder):
         # XXX: Test this!
         if result['status'] == config.SUCCESS and \
                 (result['messages'] or result['chatroom_messages']):
-            log.info('getNewMessages: %s' % user.last_received_date)
+            log.debug('getNewMessages: %s' % user.last_received_date)
             user.last_received_date = result['last_msg_date']
 
         return json.dumps(result)
