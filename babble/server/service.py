@@ -89,7 +89,7 @@ class ChatService(Folder):
         if hasattr(self, '_v_user_access_dict') \
                 and getattr(self, '_v_cache_timeout', now) > now:
             uad = getattr(self, '_v_user_access_dict')
-            if uad[username] + timedelta(seconds=40) < now:
+            if uad.get(username, now) + timedelta(seconds=40) < now:
                 return
 
         # Get the user_access_dict directly (bypassing cache) and update it.
