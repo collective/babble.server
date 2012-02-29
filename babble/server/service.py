@@ -5,14 +5,11 @@ from datetime import timedelta
 from pytz import utc
 
 from zope.interface import implements
+from zope.component.hooks import getSite
 
 from AccessControl import ClassSecurityInfo
 from Globals import InitializeClass
 from OFS.Folder import Folder
-from ZODB.POSException import ReadConflictError
-from ZPublisher import NotFound
-
-from persistent.dict import PersistentDict
 
 from Products.BTreeFolder2.BTreeFolder2 import manage_addBTreeFolder
 
@@ -22,7 +19,7 @@ from chatroom import ChatRoom
 from utils import hashed
 import config
 
-log = logging.getLogger('babble.server/service.py')
+log = logging.getLogger(__name__)
 
 class ChatService(Folder):
     """ """
@@ -30,53 +27,14 @@ class ChatService(Folder):
     security = ClassSecurityInfo()
     security.declareObjectProtected('Use Chat Service')
 
+
     def _getUserAccessDict(self):
-        """ The 'user access dictionary' is stored inside a Temporary Folder.
-            A Temporary Folder is kept in RAM and it loses all its contents 
-            whenever the Zope server is restarted.
+        site = getSite()
+        if not hasattr(site, '_v_user_access_dict'):
+            log.warn("_getUserAccessDict: Volatile User Access Dict was not found")
+            setattr(site, '_v_user_access_dict', {})
 
-            The 'user access dictionary' contains usernames as keys and the
-            last date and time that these users have been confirmed to be 
-            online as the values.
-
-            These date values can be used to determine (guess) whether the 
-            user is still currently online.
-        """
-        if not hasattr(self, 'temp_folder'): # Acquisition
-            log.warn("The chatservice 'Online Users' folder does not exist!")
-            raise NotFound("/temp_folder does not exist.")
-
-        if not self.temp_folder.hasObject('user_access_dict'):
-            log.debug("The user_access_dict did not exist, "
-                    "and has been automatically recreated.")
-            self.temp_folder._setOb('user_access_dict', PersistentDict())
-
-        return self.temp_folder._getOb('user_access_dict')
-
-
-    def _getCachedUserAccessDict(self):
-        """ Implement simple caching to minimise writes
-        """
-        now = datetime.now()
-        if hasattr(self, '_v_user_access_dict') \
-                and getattr(self, '_v_cache_timeout', now) > now:
-            return getattr(self, '_v_user_access_dict')
-
-        # The cache has expired.
-        # Update the cache with the new user_access_dict if it is different
-        try:
-            uad = self._getUserAccessDict()
-            if getattr(self, '_v_user_access_dict', None) != uad:
-                setattr(self, '_v_user_access_dict', uad.copy())
-        except ReadConflictError, e:
-            log.warn(e)
-            return getattr(self, '_v_user_access_dict', {})
-        else:
-            # Set a new cache timeout, 60 secs in the future
-            delta = timedelta(seconds=60)
-            cache_timeout = now + delta
-            setattr(self, '_v_cache_timeout', cache_timeout)
-        return uad
+        return getattr(site, '_v_user_access_dict')
 
 
     def _setUserAccessDict(self, username):
@@ -84,25 +42,15 @@ class ChatService(Folder):
             users is updated. 
             Also make sure that the cache is up to date with new values.
         """
-        # Only update if the user pinged more than 40 seconds ago.
         now = datetime.now()
-        if hasattr(self, '_v_user_access_dict') \
-                and getattr(self, '_v_cache_timeout', now) > now:
-            uad = getattr(self, '_v_user_access_dict')
-            if uad.get(username, now) + timedelta(seconds=40) < now:
-                return
-
-        # Get the user_access_dict directly (bypassing cache) and update it.
-        uad = self._getUserAccessDict()
-        uad.update({username:now})
-        self.temp_folder._setOb('user_access_dict', uad.copy())
-
-        # Set the cache
-        now = datetime.now()
-        delta = timedelta(seconds=30)
-        cache_timeout = now + delta
-        setattr(self, '_v_cache_timeout', cache_timeout)
-        setattr(self, '_v_user_access_dict', uad.copy())
+        site = getSite()
+        if hasattr(site, '_v_user_access_dict'):
+            uad = getattr(site, '_v_user_access_dict')
+            if uad.get(username, datetime.min) + timedelta(seconds=30) < now:
+                uad[username] = now
+        else:
+            log.warn("_setUserAccessDict: Volatile User Access Dict was not found")
+            setattr(site, '_v_user_access_dict', {username: now})
 
 
     def _getChatRoomsFolder(self):
@@ -175,7 +123,7 @@ class ChatService(Folder):
         return self.acl_users.authenticate(username, password, self.REQUEST)
 
 
-    def _isOnline(self, username):
+    def _isOnline(self, username, uad):
         """ Determine whether the user is (probably) currently online
 
             Get the last time that the user updated the 'user access dict' and
@@ -183,10 +131,8 @@ class ChatService(Folder):
 
             If yes, then we assume the user is online, otherwise not.
         """
-        uad = self._getUserAccessDict()
         last_confirmed_date = uad.get(username, datetime.min)
-        delta = timedelta(minutes=1)
-        cutoff_date = datetime.now() - delta
+        cutoff_date = datetime.now() - timedelta(60)
         return last_confirmed_date > cutoff_date
 
 
@@ -283,7 +229,6 @@ class ChatService(Folder):
                                     roles=(), 
                                     domains=(), 
                                     last_msg_date=config.NULL_DATE )
-        user.last_received_date = config.NULL_DATE
         user.last_cleared_date = config.NULL_DATE
         return json.dumps({'status': config.SUCCESS})
 
@@ -306,8 +251,8 @@ class ChatService(Folder):
         """ Determine the (probable) online users from the 'user access dict' 
             and return them as a list
         """
-        uad = self._getCachedUserAccessDict()
-        ou = [user for user in uad.keys() if self._isOnline(user)]
+        uad = self._getUserAccessDict()
+        ou = [user for user in uad.keys() if self._isOnline(user, uad)]
         return json.dumps({'status': config.SUCCESS, 'online_users': ou})
 
 
@@ -371,6 +316,8 @@ class ChatService(Folder):
                 for i in mbox.objectIds():
                     i = float(i)
                     mdate = datetime.utcfromtimestamp(i).replace(tzinfo=utc).isoformat()
+                    if mdate > last_msg_date:
+                        last_msg_date = mdate
                     if mdate <= since or mdate > until:
                         continue
 
@@ -388,8 +335,8 @@ class ChatService(Folder):
                     else:
                         raise AttributeError, e
 
-                if m.time > last_msg_date:
-                    last_msg_date = m.time 
+                # if m.time > last_msg_date:
+                #     last_msg_date = m.time 
 
             if mbox_messages:
                 msgs_dict[container.partner[username]] = tuple(mbox_messages)
@@ -475,7 +422,7 @@ class ChatService(Folder):
                                         since, until))
 
 
-    def getNewMessages(self, username, password):
+    def getNewMessages(self, username, password, since):
         """ Get all messages since the user's last fetch.
 
             partner: None or '*' or a username. 
@@ -487,23 +434,16 @@ class ChatService(Folder):
             log.warn('getNewMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
 
+        if since == config.NULL_DATE:
+            user = self.acl_users.getUser(username)
+            since = user.last_cleared_date
+
         user = self.acl_users.getUser(username)
-        if not hasattr(user, 'last_received_date'):
-            user.last_received_date = config.NULL_DATE
-        since = user.last_received_date
-
         result = self._getMessages(username, '*', '*', since, None)
-
-        # XXX: Test this!
-        if result['status'] == config.SUCCESS and \
-                (result['messages'] or result['chatroom_messages']):
-            log.debug('getNewMessages: %s' % user.last_received_date)
-            user.last_received_date = result['last_msg_date']
-
         return json.dumps(result)
 
 
-    def getUnclearedMessages(self, username, password, partner, chatrooms, clear):
+    def getUnclearedMessages(self, username, password, partner, chatrooms, until, clear):
         """ Get all messages since the last clearance date.
 
             partner: None or '*' or a username. 
@@ -518,21 +458,12 @@ class ChatService(Folder):
         user = self.acl_users.getUser(username)
         if not hasattr(user, 'last_cleared_date'):
             user.last_cleared_date = config.NULL_DATE
+
         since = user.last_cleared_date
-
-        result = self._getMessages(username, partner, chatrooms, since, None)
+        result = self._getMessages(username, partner, chatrooms, since, until)
         if result['status'] == config.SUCCESS and \
-                (result['messages'] or result['chatroom_messages']):
-
-            if not hasattr(user, 'last_received_date') or \
-                    result['last_msg_date'] > user.last_received_date:
-                # The last_msg_date is not necessarily bigger, since
-                # getUnclearedMessages only fetches for a specific partner
-                # and/or chatrooms.
-                user.last_received_date = result['last_msg_date']
-
-            if clear:
-                user.last_cleared_date = result['last_msg_date']
+                (result['messages'] or result['chatroom_messages'] or clear):
+            user.last_cleared_date = result['last_msg_date']
         return json.dumps(result)
 
 
