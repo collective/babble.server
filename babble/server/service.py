@@ -79,14 +79,22 @@ class ChatService(Folder):
         return uad
 
 
-    def _setUserAccessDict(self, **kw):
+    def _setUserAccessDict(self, username):
         """ Make sure that the temp_folder which stores the dict of online
             users is updated. 
             Also make sure that the cache is up to date with new values.
         """
+        # Only update if the user pinged more than 40 seconds ago.
+        now = datetime.now()
+        if hasattr(self, '_v_user_access_dict') \
+                and getattr(self, '_v_cache_timeout', now) > now:
+            uad = getattr(self, '_v_user_access_dict')
+            if uad[username] + timedelta(seconds=40) < now:
+                return
+
         # Get the user_access_dict directly (bypassing cache) and update it.
         uad = self._getUserAccessDict()
-        uad.update(kw)
+        uad.update({username:now})
         self.temp_folder._setOb('user_access_dict', uad.copy())
 
         # Set the cache
@@ -262,7 +270,7 @@ class ChatService(Folder):
                             'errmsg': 'Username may not be None',
                             })
 
-        self._setUserAccessDict(**{username:datetime.now()})
+        self._setUserAccessDict(username)
         return json.dumps({'status': config.SUCCESS})
 
 
