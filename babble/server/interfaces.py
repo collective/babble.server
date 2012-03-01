@@ -15,76 +15,115 @@ class IChatService(Interface):
     def createChatRoom(self, username, password, path, participants):
         """ Chat rooms, unlike members, don't necessarily have unique IDs. They
             do however have unique paths. We hash the path to get a unique id.
+
+            username:       string
+            password:       string
+            path:           string  (path to the chatroom)
+            participants:   list of strings
         """
+
 
     def addChatRoomParticipant(self, username, password, path, participant):
         """ Add another user as a participant in a chat room
+
+            username:       string
+            password:       string
+            path:           string  (path to the chatroom)
+            participants:   strings
         """
 
     def editChatRoom(self, username, password, id, participants):
-        """ To be used to add/remove multiple participants 
+        """ Set a chatroom's participants 
+        
+            username:       string
+            password:       string
+            id:             string  (the chat room's id)
+            participants:   list of strings
         """
 
     def removeChatRoom(self, username, password, id):
-        """ """
+        """ Delete a chatroom """
 
     def confirmAsOnline(self, username):
         """ Confirm that the user is currently online by updating the 'user
             access dict'
-
-            returns {'status': int}
         """
 
     def register(self, username, password):
-        """ Register a user with the babble.server's acl_users and create a
-            'User' object in the 'Users' folder
-
-            returns {'status': int}
+        """ Register a user with the babble.server's acl_users
         """
 
     def isRegistered(self, username):
-        """ Check whether the user is registered via babble.server's acl_users 
-        
-            returns {'status': int, 'is_registered': bool}
-        """
-
+        """ Check whether the user is registered via acl_users """
 
     def setUserPassword(self, username, password):
-        """ Set the user's password 
-
-            returns {'status': int}
-        """
+        """ Set the user's password """
 
     def getOnlineUsers(self):
-        """ Determine the (probable) online users from the 'user access dict' 
-            and return them as a list
-
-            returns {'status': int, 'online_users': list}
+        """ Determine and return the (probable) online users from the 'user access dict'.
         """
 
     def sendMessage(self, username, password, fullname, recipient, message):
         """ Sends a message to recipient
-
-            returns {'status': string, 'last_msg_date': date}
+        
+            username:   string
+            password:   string
+            fullname:   string (The sender's full name)
+            recipient:  string (The message recipient)
+            message:    string
         """
 
-    def getMessages(self, username, password, sender, since, until, cleared, mark_cleared):
-        """ Returns messages within a certain date range
+    def sendChatRoomMessage(self, username, password, fullname, room_name, message):
+        """ Sends a message to a chatroom 
+        
+            username:   string
+            password:   string
+            fullname:   string (The sender's full name)
+            room_name:  string (The chat room's name)
+            message:    string
+        """
 
-            Parameter values:
-            -----------------
-            sender: None or string
-                If None, return from all senders.
+    def getMessages(self, username, password, partner, chatrooms, since, until):
+        """ Returns messages from conversation partners or chatrooms,  
+            optionally within a certain date range.
 
-            since: iso8601 date string or None
+            username:   string
+            password:   string
+
+            partner:    None or '*' or a username. 
+                - None: ignore partners
+                - *   : match all partners   
+
+            chatrooms:  list of strings
+
+            since: iso8601 date string or None 
             until: iso8601 date string or None
+        """
 
-            cleared: None/True/False
-                If True, return only cleared messages.
-                If False, return only uncleared once.
-                Else, return all of them.
+    def getNewMessages(self, username, password, since):
+        """ Get all messages since a certain date.
+            
+            username:   string
+            password:   string
+            since:      iso8601 date string or None
 
-            mark_cleared: True/False
+            If since=None, get all messages.
+        """
+
+    def getUnclearedMessages(self, username, password, partner, chatrooms, until, clear):
+        """ Get all messages since the last clearance date. 
+            Optionally mark them as cleared.
+
+            username:   string
+            password:   string
+
+            partner: None or '*' or a string
+                - None: ignore partners
+                - *   : match all partners   
+            chatrooms: '*' or list   
+                - *   : match all chatrooms
+            until: iso8601 date string or None
+            clear: boolean
         """
 
 
