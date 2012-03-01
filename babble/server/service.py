@@ -5,7 +5,6 @@ from datetime import timedelta
 from pytz import utc
 
 from zope.interface import implements
-from zope.component.hooks import getSite
 
 from AccessControl import ClassSecurityInfo
 from Globals import InitializeClass
@@ -29,28 +28,23 @@ class ChatService(Folder):
 
 
     def _getUserAccessDict(self):
-        site = getSite()
-        if not hasattr(site, '_v_user_access_dict'):
+        if not hasattr(self, '_v_user_access_dict'):
             log.warn("_getUserAccessDict: Volatile User Access Dict was not found")
-            setattr(site, '_v_user_access_dict', {})
+            setattr(self, '_v_user_access_dict', {})
 
-        return getattr(site, '_v_user_access_dict')
+        return getattr(self, '_v_user_access_dict')
 
 
     def _setUserAccessDict(self, username):
-        """ Make sure that the temp_folder which stores the dict of online
-            users is updated. 
-            Also make sure that the cache is up to date with new values.
-        """
+        """ """
         now = datetime.now()
-        site = getSite()
-        if hasattr(site, '_v_user_access_dict'):
-            uad = getattr(site, '_v_user_access_dict')
+        if hasattr(self, '_v_user_access_dict'):
+            uad = getattr(self, '_v_user_access_dict')
             if uad.get(username, datetime.min) + timedelta(seconds=30) < now:
                 uad[username] = now
         else:
             log.warn("_setUserAccessDict: Volatile User Access Dict was not found")
-            setattr(site, '_v_user_access_dict', {username: now})
+            setattr(self, '_v_user_access_dict', {username: now})
 
 
     def _getChatRoomsFolder(self):
@@ -125,14 +119,9 @@ class ChatService(Folder):
 
     def _isOnline(self, username, uad):
         """ Determine whether the user is (probably) currently online
-
-            Get the last time that the user updated the 'user access dict' and
-            see whether this time is less than 1 minute in the past.
-
-            If yes, then we assume the user is online, otherwise not.
         """
         last_confirmed_date = uad.get(username, datetime.min)
-        cutoff_date = datetime.now() - timedelta(60)
+        cutoff_date = datetime.now() - timedelta(seconds=60)
         return last_confirmed_date > cutoff_date
 
 
@@ -141,9 +130,6 @@ class ChatService(Folder):
 
 
     def createChatRoom(self, username, password, path, participants):
-        """ Chat rooms, unlike members, don't necessarily have unique IDs. They
-            do however have unique paths. We hash the path to get a unique id.
-        """
         if self._authenticate(username, password) is None:
             log.warn('createChatRoom: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
@@ -155,8 +141,7 @@ class ChatService(Folder):
 
     
     def addChatRoomParticipant(self, username, password, path, participant):
-        """ Add another user as a participant in a chat room
-        """
+        """ See interfaces.IChatService """
         if self._authenticate(username, password) is None or \
                 not self._isRegistered(participant):
 
@@ -176,7 +161,7 @@ class ChatService(Folder):
 
 
     def editChatRoom(self, username, password, id, participants):
-        """ """
+        """ See interfaces.IChatService """
         if self._authenticate(username, password) is None:
             log.warn('getMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
@@ -196,7 +181,7 @@ class ChatService(Folder):
 
 
     def removeChatRoom(self, username, password, id):
-        """ """
+        """ See interfaces.IChatService """
         if self._authenticate(username, password) is None:
             log.warn('getMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
@@ -207,9 +192,7 @@ class ChatService(Folder):
 
 
     def confirmAsOnline(self, username):
-        """ Confirm that the user is currently online by updating the 'user
-            access dict'
-        """
+        """ See interfaces.IChatService """
         if username is None:
             return json.dumps({
                             'status': config.ERROR,
@@ -221,8 +204,7 @@ class ChatService(Folder):
 
 
     def register(self, username, password):
-        """ Register a user with the babble.server's acl_users
-        """
+        """ See interfaces.IChatService """
         user = self.acl_users.userFolderAddUser(
                                     username, 
                                     password, 
@@ -234,31 +216,28 @@ class ChatService(Folder):
 
 
     def isRegistered(self, username):
-        """ Check whether the user is registered via acl_users """
+        """ See interfaces.IChatService """
         return json.dumps({
                     'status': config.SUCCESS, 
                     'is_registered': self._isRegistered(username)})
 
 
     def setUserPassword(self, username, password):
-        """ Set the user's password """
+        """ See interfaces.IChatService """
         self.acl_users.userFolderEditUser(
                 username, password, roles=(), domains=())
         return json.dumps({'status': config.SUCCESS})
 
 
     def getOnlineUsers(self):
-        """ Determine the (probable) online users from the 'user access dict' 
-            and return them as a list
-        """
+        """ See interfaces.IChatService """
         uad = self._getUserAccessDict()
         ou = [user for user in uad.keys() if self._isOnline(user, uad)]
         return json.dumps({'status': config.SUCCESS, 'online_users': ou})
 
 
     def sendMessage(self, username, password, fullname, recipient, message):
-        """ Sends a message to recipient
-        """
+        """ See interfaces.IChatService """
         if self._authenticate(username, password) is None:
             log.warn('sendMessage: authentication failed')
             return json.dumps({
@@ -275,7 +254,7 @@ class ChatService(Folder):
 
 
     def sendChatRoomMessage(self, username, password, fullname, room_name, message):
-        """ Sends a message to a chatroom """
+        """ See interfaces.IChatService """
         if self._authenticate(username, password) is None:
             log.warn('sendChatRoomMessage: authentication failed')
             return json.dumps({
@@ -298,9 +277,7 @@ class ChatService(Folder):
 
 
     def _getMessagesFromContainers(self, containers, username, since, until):
-        """ containers: A list of conversations, or a list of chatrooms
-            since:  iso8601 date string
-            until:  iso8601 date string
+        """ Generic conversation-type agnostic method that fetches messages.
         """
         last_msg_date = config.NULL_DATE
         msgs_dict = {}
@@ -316,9 +293,15 @@ class ChatService(Folder):
                 for i in mbox.objectIds():
                     i = float(i)
                     mdate = datetime.utcfromtimestamp(i).replace(tzinfo=utc).isoformat()
+
+                    if mdate > until:
+                        continue
+
                     if mdate > last_msg_date:
+                        # We want the latest date that's smaller than 'until'
                         last_msg_date = mdate
-                    if mdate <= since or mdate > until:
+
+                    if mdate <= since:
                         continue
 
                     m = mbox._getOb('%f' % i)
@@ -335,9 +318,6 @@ class ChatService(Folder):
                     else:
                         raise AttributeError, e
 
-                # if m.time > last_msg_date:
-                #     last_msg_date = m.time 
-
             if mbox_messages:
                 msgs_dict[container.partner[username]] = tuple(mbox_messages)
 
@@ -349,9 +329,6 @@ class ChatService(Folder):
 
             This is an internal method that assumes authentication has 
             been done.
-
-            partner == '*' means all partners
-            chatrooms == '*' means all chatrooms
         """ 
         if since is None:
             since = config.NULL_DATE
@@ -397,20 +374,7 @@ class ChatService(Folder):
 
 
     def getMessages(self, username, password, partner, chatrooms, since, until):
-        """ Returns messages within a certain date range
-
-            Parameter values:
-            -----------------
-            partner: None or '*' or a username. 
-                If None, don't return from any partners. 
-                If *, return from all partners.
-                Else, return only from the user with name given
-
-            chatrooms: list of strings
-
-            since: iso8601 date string or None
-            until: iso8601 date string or None
-        """
+        """ See interfaces.IChatService """
         if self._authenticate(username, password) is None:
             log.warn('getMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
@@ -423,13 +387,7 @@ class ChatService(Folder):
 
 
     def getNewMessages(self, username, password, since):
-        """ Get all messages since the user's last fetch.
-
-            partner: None or '*' or a username. 
-                If None, don't return from any partners. 
-                If *, return from all partners.
-                Else, return only from the user with name given
-        """
+        """ See interfaces.IChatService """
         if self._authenticate(username, password) is None:
             log.warn('getNewMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
@@ -444,13 +402,7 @@ class ChatService(Folder):
 
 
     def getUnclearedMessages(self, username, password, partner, chatrooms, until, clear):
-        """ Get all messages since the last clearance date.
-
-            partner: None or '*' or a username. 
-                If None, don't return from any partners. 
-                If *, return from all partners.
-                Else, return only from the user with name given
-        """
+        """ See interfaces.IChatService """
         if self._authenticate(username, password) is None:
             log.warn('getUnclearedMessages: authentication failed')
             return json.dumps({'status': config.AUTH_FAIL})
@@ -461,9 +413,9 @@ class ChatService(Folder):
 
         since = user.last_cleared_date
         result = self._getMessages(username, partner, chatrooms, since, until)
-        if result['status'] == config.SUCCESS and \
-                (result['messages'] or result['chatroom_messages'] or clear):
+        if clear:
             user.last_cleared_date = result['last_msg_date']
+
         return json.dumps(result)
 
 

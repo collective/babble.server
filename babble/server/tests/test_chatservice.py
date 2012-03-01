@@ -7,10 +7,9 @@ from ZPublisher import NotFound
 from zExceptions import Unauthorized
 from persistent.dict import PersistentDict
 
-from Products.TemporaryFolder.TemporaryFolder import SimpleTemporaryContainer
-from Products.Five import zcml
-from babble.server import config
+from zope.interface.verify import verifyObject
 
+from Products.Five import zcml
 import Products.Five
 ztc.installProduct('Five')
 zcml.load_config('configure.zcml', package=Products.Five)
@@ -19,27 +18,45 @@ import babble.server
 ztc.installProduct('babble.server')
 zcml.load_config('configure.zcml', package=babble.server)
 
+from babble.server import config
+from babble.server import interfaces
+from babble.server.conversation import Conversation
+from babble.server.chatroom import ChatRoom
+
 # Regex to test for ISO8601, i.e: '2011-09-30T15:49:35.417693+00:00'
 # RE = re.compile(r'^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}\.\d{6}[+-]\d{2}:\d{2}$')
 
 class TestChatService(ztc.ZopeTestCase):
 
-    def afterSetUp(self):
+    def _create_chatservice(self):
         """ Adds a babble.server to the default fixture """
+        if getattr(self.app, 'chat_service', None):
+            self.app.manage_delObjects(['chat_service'])
         view = self.app.unrestrictedTraverse('+/addChatService.html')
         self.assertEqual(type(view()), unicode) # Render the add form
         view(add_input_name='chat_service', title='Chat Service', submit_add=1)
+        return self.app.chat_service
 
-        # The 'temp_folder' is not created for some reason, so do it here...
-        self.app._setOb('temp_folder', SimpleTemporaryContainer('temp_folder'))
 
-        self.chatservice = self.app.chat_service
+    def test_interfaces(self):
+        service = self._create_chatservice() 
+        self.assertTrue(verifyObject(interfaces.IChatService, service))
+
+        chatrooms = service._getOb('chatrooms')
+        chatrooms._setObject('chatroom', ChatRoom('chatroom', 'chatroom', []))
+        chatroom = chatrooms._getOb('chatroom')
+        self.assertTrue(verifyObject(interfaces.IChatRoom, chatroom))
+
+        conversations = service._getOb('conversations')
+        conversations._setObject('conv', Conversation('conv', 'user1', 'user2'))
+        conversation = conversations._getOb('conv')
+        self.assertTrue(verifyObject(interfaces.IConversation, conversation))
 
 
     def test_register(self):
         """ Test the 'register' methods
         """
-        s = self.chatservice
+        s = self._create_chatservice() 
         status = s.register('username', 'password')
         status = json.loads(status)
         self.assertEquals(status['status'], config.SUCCESS)
@@ -48,29 +65,20 @@ class TestChatService(ztc.ZopeTestCase):
     def test_user_access_dict(self):
         """ Test the '_getUserAccessDict' method
         """ 
-        s = self.chatservice
-        # We begin with no UAD.
-        self.assertEqual(s.temp_folder.hasObject('user_access_dict'), False)
-
-        uad = s._getCachedUserAccessDict()
-        # The method should return an empty persistent dict
-        self.assertEqual(uad, PersistentDict())
-
-        # Now there should be a UAD
-        assert(s.temp_folder.hasObject('user_access_dict'))
+        s = self._create_chatservice() 
+        uad = s._getUserAccessDict()
 
         # The cache should be set and it's expiry date must be in the future
+        self.assertEqual(getattr(s, '_v_user_access_dict'), {})
+
         now = datetime.datetime.now()
-        assert(getattr(s, '_v_cache_timeout') > now)
-        self.assertEqual(getattr(s, '_v_user_access_dict'), PersistentDict())
 
         # Put a user into the UAD
-        online_users = {'max_musterman':now}
-        s._setUserAccessDict(**online_users)
+        s._setUserAccessDict('max_musterman')
 
         # Test that he is there
         uad = s._getUserAccessDict()
-        self.assertEqual(uad, online_users)
+        self.assertEqual(uad.keys(), ['max_musterman'])
 
         # Test that he is also in the cache (first make sure that the cache
         # timeout is in the future)
@@ -78,55 +86,25 @@ class TestChatService(ztc.ZopeTestCase):
         cache_timeout = now + delta
         setattr(s, '_v_cache_timeout', cache_timeout)
 
-        # Now test...
-        uad = s._getCachedUserAccessDict()
-        self.assertEqual(uad, online_users)
-
         # Wipe the UAD
-        s.temp_folder._setOb('user_access_dict', PersistentDict())
-
-        # The cached value should still be there...
-        uad = s._getCachedUserAccessDict()
-        self.assertEqual(uad, online_users)
-
-        # Wipe the cache
-        setattr(s, '_v_cache_timeout', now-delta)
-        uad = s._getCachedUserAccessDict()
-        self.assertEqual(uad, PersistentDict())
+        s._v_user_access_dict = {}
 
         # Put a user into the UAD
-        online_users = {'maxine_musterman':now}
-        s._setUserAccessDict(**online_users)
+        s._setUserAccessDict('maxine_musterman')
 
         # Test that he is there and in the cache...
         uad = s._getUserAccessDict()
-        self.assertEqual(uad, online_users)
+        self.assertEqual(uad.keys(), ['maxine_musterman'])
 
         now = datetime.datetime.now()
         assert(getattr(s, '_v_cache_timeout') > now)
-
-        uad = s._getCachedUserAccessDict()
-        self.assertEqual(uad, online_users)
-
-        # Test that the 'user access dict' is recreated if it is deleted (which
-        # is plausible since it's in a temp folder)
-        s.temp_folder._delOb('user_access_dict')
-        uad = s._getUserAccessDict()
-        self.assertEqual(uad, PersistentDict())
-
-        # Test the NotFound is raised when the 'temp_folder' is not there
-        self.app._delOb('temp_folder')
-        # Invalidate the cache
-        self.assertRaises(NotFound, s._getUserAccessDict)
-        delattr(s, '_v_user_access_dict')
-        self.assertRaises(NotFound, s._getCachedUserAccessDict)
 
 
     def test_registration(self):
         """ Test the 'register', 'isRegistered', 'authenticate' and
             'setUserPassword'  methods.
         """
-        s = self.chatservice
+        s = self._create_chatservice() 
         s.register('username', 'password')
 
         r = s.isRegistered('username')
@@ -157,10 +135,11 @@ class TestChatService(ztc.ZopeTestCase):
 
     def test_online(self):
         """ Test the 'confirmAsOnline', '_isOnline' and 'getOnlineUsers' methods """
-        s = self.chatservice
+        s = self._create_chatservice() 
         u = 'username'
         s.register(u, u)
-        self.assertEqual(s._isOnline(u), False)
+        uad = s._getUserAccessDict()
+        self.assertEqual(s._isOnline(u, uad), False)
 
         r = s.confirmAsOnline(None)
         r = json.loads(r)
@@ -168,10 +147,9 @@ class TestChatService(ztc.ZopeTestCase):
 
         # Test that a user entry was made into the 'user access dict'
         s.confirmAsOnline(u)
-        uad = s._getUserAccessDict()
         self.assertEqual(uad.get(u, None) != None, True)
 
-        self.assertEqual(s._isOnline(u), True)
+        self.assertEqual(s._isOnline(u, uad), True)
 
         now = datetime.datetime.now()
         
@@ -179,7 +157,7 @@ class TestChatService(ztc.ZopeTestCase):
         # less than a minute) is still considered as online.
         delta = datetime.timedelta(seconds=59)
         uad[u] = datetime.datetime.now() - delta
-        self.assertEqual(s._isOnline(u), True)
+        self.assertEqual(s._isOnline(u, uad), True)
 
         ou = s.getOnlineUsers()
         ou = json.loads(ou)
@@ -190,7 +168,7 @@ class TestChatService(ztc.ZopeTestCase):
         # at least a minute) is now considered as offline.
         delta = datetime.timedelta(minutes=1)
         uad[u] = datetime.datetime.now() - delta
-        self.assertEqual(s._isOnline(u), False)
+        self.assertEqual(s._isOnline(u, uad), False)
 
         ou = s.getOnlineUsers()
         ou = json.loads(ou)
@@ -211,7 +189,7 @@ class TestChatService(ztc.ZopeTestCase):
 
 
     def test_chatroom(self):
-        s = self.chatservice
+        s = self._create_chatservice()
         s.register('user1', 'secret')
         s.register('user2', 'secret')
 
@@ -227,7 +205,7 @@ class TestChatService(ztc.ZopeTestCase):
 
     def test_messaging(self):
         """ Test sendMessage, getMessages, getNewMessages and related methods """
-        s = self.chatservice
+        s = self._create_chatservice()
         s.register('sender', 'secret')
         s.register('recipient', 'secret')
 
@@ -249,10 +227,10 @@ class TestChatService(ztc.ZopeTestCase):
         response = json.loads(s.getMessages('sender', 'wrongpass', '*', [], None, None))
         self.assertEqual(response['status'], config.AUTH_FAIL)
 
-        um = json.loads(s.getNewMessages('recipient', 'wrongpass'))
+        um = json.loads(s.getNewMessages('recipient', 'wrongpass', config.NULL_DATE))
         self.assertEqual(um['status'], config.AUTH_FAIL)
 
-        um = json.loads(s.getUnclearedMessages('recipient', 'wrongpass', 'sender', [], False))
+        um = json.loads(s.getUnclearedMessages('recipient', 'wrongpass', 'sender', [], config.NULL_DATE, False))
         self.assertEqual(um['status'], config.AUTH_FAIL)
 
         # Test invalid date.
@@ -271,7 +249,7 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertTrue(bool(config.VALID_DATE_REGEX.search(response['last_msg_date'])))
         message_timestamp = response['last_msg_date']
 
-        um = json.loads(s.getNewMessages( 'recipient', 'secret'))
+        um = json.loads(s.getNewMessages( 'recipient', 'secret', config.NULL_DATE))
         self.assertEqual(um['status'], config.SUCCESS)
         # The returned datastructure looks as follows:
         #
@@ -285,14 +263,6 @@ class TestChatService(ztc.ZopeTestCase):
         # }
         self.assertEqual(um.keys(), ['status', 'messages', 'last_msg_date', 'chatroom_messages'])
         self.assertEqual(um['last_msg_date'], message_timestamp)
-
-        # Test that the recipient now has an updated last_msg_date attr
-        user = s.acl_users.getUser('recipient')
-        self.assertEqual(um['last_msg_date'], user.last_received_date)
-
-        # The sender didn't call getMessages yet, so his last_msg_date must be NULL_DATE
-        user = s.acl_users.getUser('sender')
-        self.assertEqual(config.NULL_DATE, user.last_received_date)
 
         msgdict = um['messages'] 
         # Test that messages from only one user was returned
@@ -335,12 +305,9 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(msgdict['recipient'][0][0], 'sender')
         self.assertEqual(msgdict['recipient'][0][1], 'This is the message')
 
-        # Test that the recipient now has an updated last_received_date attr
-        user = s.acl_users.getUser('sender')
-        # XXX self.assertEqual(db['last_msg_date'], user.last_received_date)
-
         # Test getMessages with multiple senders. 
         s.register('sender2', 'secret')
+        before_first_msg_from_sender2 = datetime.datetime.now(utc).isoformat()
         response = s.sendMessage('sender2', 'secret', 'Sender2 McSend', 'recipient', 'Message from sender2')
         response = json.loads(response)
         self.assertEqual(response['status'], config.SUCCESS)
@@ -386,19 +353,11 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(sender2_messages['last_msg_date'], recipient_messages['last_msg_date'])
         self.assertEqual(sender2_messages['messages']['recipient'], recipient_messages['messages']['sender2'])
 
-        user = s.acl_users.getUser('sender2')
-        # XXX self.assertEqual(um['last_msg_date'], user.last_received_date)
-        last_date_sender2 = user.last_received_date
-
         # Test for messages sent after message_timestamp. This should not return messages.
         um = json.loads(s.getMessages('recipient', 'secret', '*', [], recipient_messages['last_msg_date'], None))
         self.assertEqual(um['status'], config.SUCCESS)
         self.assertEqual(um['messages'], {})
-        self.assertEqual(um['last_msg_date'], config.NULL_DATE)
-
-        # Test that the recipient now has an updated last_msg_date attr
-        user = s.acl_users.getUser('sender2')
-        # XXX self.assertEqual(sender2_messages['last_msg_date'], user.last_received_date)
+        self.assertEqual(um['last_msg_date'], message2_timestamp)
 
         # Test with finer date ranges via 'since' and 'until'
         before_msg = datetime.datetime.now(utc).isoformat()
@@ -446,7 +405,7 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(um['messages']['sender'][0][1], "sender's message between times")
         self.assertEqual(um['messages']['sender2'][0][1], "sender2's message between times")
 
-        um = json.loads(s.getNewMessages('recipient', 'secret'))
+        um = json.loads(s.getNewMessages('recipient', 'secret', before_first_msg_from_sender2))
         self.assertEqual(len(um['messages']), 2)
         self.assertEqual(len(um['messages']['sender']), 1)
         self.assertEqual(um['messages']['sender'][0][1], "sender's message between times")
@@ -455,25 +414,12 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(um['messages']['sender2'][0][1], "Message from sender2")
         self.assertEqual(um['messages']['sender2'][1][1], "sender2's message between times")
 
-        # Test that the recipient now has an updated last_msg_date attr # (because of getNewMessages)
-        user = s.acl_users.getUser('recipient')
-        self.assertEqual(um['last_msg_date'], user.last_received_date)
-
-        # For completeness, test getNewMessages when the user doesn't have a last_received_date
-        del user.last_received_date
-        resp1 = json.loads(s.getNewMessages('recipient', 'secret'))
-        resp2 = json.loads(s.getMessages('recipient', 'secret', '*', [], config.NULL_DATE, datetime.datetime.now(utc).isoformat()))
-        self.assertEqual(resp1, resp2)
-
         # Test getNewMessages. sender2 sent a message but didn't fetch it yet.
         # So we should be able to get it now.
         # We also send a message from sender... so we should get 2 msgs now.
         response = s.sendMessage('sender', 'secret', 'Sender McSend', 'sender2', "Message from sender to sender2")
 
-        user = s.acl_users.getUser('sender2')
-        last_date_sender2 = user.last_received_date
-
-        um = json.loads(s.getNewMessages('sender2', 'secret'))
+        um = json.loads(s.getNewMessages('sender2', 'secret', before_first_msg_from_sender2))
         self.assertEqual(len(um['messages']), 2)
         self.assertEqual(len(um['messages']['sender']), 1)
         self.assertEqual(len(um['messages']['recipient']), 2)
@@ -481,48 +427,25 @@ class TestChatService(ztc.ZopeTestCase):
         self.assertEqual(um['messages']['recipient'][0][1], "Message from sender2")
         self.assertEqual(um['messages']['recipient'][1][1], "sender2's message between times")
 
-        user = s.acl_users.getUser('sender2')
-        self.assertEqual(um['last_msg_date'], user.last_received_date)
-
         # last_msg_date must be the same date as sender's message, which was last
         self.assertEqual(um['last_msg_date'], um['messages']['sender'][0][2])
-
-        last_received = user.last_received_date
-        last_cleared = user.last_cleared_date
+        last_msg_date = um['last_msg_date']
 
         # Now getNewMessages must return nothing
-        um = json.loads(s.getNewMessages('sender2', 'secret'))
+        um = json.loads(s.getNewMessages('sender2', 'secret', datetime.datetime.now(utc).isoformat()))
         self.assertEqual(um['messages'], {})
-        self.assertEqual(um['last_msg_date'], config.NULL_DATE)
-        self.assertEqual(user.last_received_date, last_received)
+        self.assertEqual(um['last_msg_date'], last_msg_date)
 
-        # Some more getUnclearedMessages tests
-        resp1 = json.loads(s.getUnclearedMessages('sender2', 'secret', '*', [], False))
-        self.assertEqual(user.last_received_date, last_received)
-        self.assertEqual(user.last_cleared_date, last_cleared)
+        user = s.acl_users.getUser('sender2')
+        last_cleared = user.last_cleared_date
 
-        del user.last_received_date
-        resp2 = json.loads(s.getUnclearedMessages('sender2', 'secret', '*', [], False))
-        self.assertEqual(user.last_received_date, last_received)
-        self.assertEqual(user.last_cleared_date, last_cleared)
-
-        del user.last_cleared_date
-        resp3 = json.loads(s.getUnclearedMessages('sender2', 'secret', '*', [], False))
-        self.assertEqual(user.last_received_date, last_received)
-        self.assertEqual(user.last_cleared_date, last_cleared)
-
-        resp = json.loads(s.getUnclearedMessages('sender2', 'secret', '*', [], True))
-        self.assertEqual(user.last_received_date, resp['last_msg_date'])
-
-        resp = json.loads(s.getUnclearedMessages('sender2', 'secret', '*', [], True))
-        self.assertEqual(resp['messages'], {})
 
 
     def test_chatroom_messaging(self):
         """ Test the 'sendMessage' and 'getMessages' methods, together with
             ChatRooms 
         """
-        s = self.chatservice
+        s = self._create_chatservice()
         s.register('user1', 'secret')
         s.register('user2', 'secret')
         s.register('user3', 'secret')
@@ -659,7 +582,7 @@ class TestChatService(ztc.ZopeTestCase):
         db = s.getMessages( 'user3', 'secret', None, chatroom1_path, config.NULL_DATE, None,)
         self.assertEqual(db, um)
 
-        db = json.loads(s.getNewMessages( 'user4', 'secret'))
+        db = json.loads(s.getNewMessages( 'user4', 'secret', config.NULL_DATE))
         self.assertEqual(db['status'], config.SUCCESS)
         self.assertEqual(db['last_msg_date'], message2_timestamp)
 
@@ -675,13 +598,16 @@ class TestChatService(ztc.ZopeTestCase):
         db = s.getMessages( 'user4', 'secret', None, chatroom1_path, config.NULL_DATE, None,)
         self.assertEqual(db, um)
 
-        db = s.getUnclearedMessages( 'user4', 'secret', None, chatroom1_path, False)
+        db = s.getUnclearedMessages( 'user4', 'secret', None, chatroom1_path, None, False)
         self.assertEqual(db, um)
 
-        db = s.getUnclearedMessages( 'user4', 'secret', None, chatroom1_path, True)
+        db = s.getUnclearedMessages( 'user4', 'secret', None, chatroom1_path, None, False)
         self.assertEqual(db, um)
 
-        db = json.loads(s.getUnclearedMessages( 'user4', 'secret', None, chatroom1_path, True))
+        db = s.getUnclearedMessages( 'user4', 'secret', None, chatroom1_path, None, True)
+        self.assertEqual(db, um)
+
+        db = json.loads(s.getUnclearedMessages( 'user4', 'secret', None, chatroom1_path, None, True))
         self.assertEqual(mdict['status'], config.SUCCESS)
         self.assertEqual(db['messages'], {})
         self.assertEqual(db['chatroom_messages'], {})
