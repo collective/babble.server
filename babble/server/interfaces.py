@@ -12,7 +12,7 @@ class IChatService(Interface):
         NOT_FOUND = 3
     """
 
-    def createChatRoom(self, username, password, path, participants):
+    def createChatRoom(username, password, path, participants):
         """ Chat rooms, unlike members, don't necessarily have unique IDs. They
             do however have unique paths. We hash the path to get a unique id.
 
@@ -23,7 +23,7 @@ class IChatService(Interface):
         """
 
 
-    def addChatRoomParticipant(self, username, password, path, participant):
+    def addChatRoomParticipant(username, password, path, participant):
         """ Add another user as a participant in a chat room
 
             username:       string
@@ -32,7 +32,7 @@ class IChatService(Interface):
             participants:   strings
         """
 
-    def editChatRoom(self, username, password, id, participants):
+    def editChatRoom(username, password, id, participants):
         """ Set a chatroom's participants 
         
             username:       string
@@ -41,29 +41,29 @@ class IChatService(Interface):
             participants:   list of strings
         """
 
-    def removeChatRoom(self, username, password, id):
+    def removeChatRoom(username, password, id):
         """ Delete a chatroom """
 
-    def confirmAsOnline(self, username):
+    def confirmAsOnline(username):
         """ Confirm that the user is currently online by updating the 'user
             access dict'
         """
 
-    def register(self, username, password):
+    def register(username, password):
         """ Register a user with the babble.server's acl_users
         """
 
-    def isRegistered(self, username):
+    def isRegistered(username):
         """ Check whether the user is registered via acl_users """
 
-    def setUserPassword(self, username, password):
+    def setUserPassword(username, password):
         """ Set the user's password """
 
-    def getOnlineUsers(self):
+    def getOnlineUsers():
         """ Determine and return the (probable) online users from the 'user access dict'.
         """
 
-    def sendMessage(self, username, password, fullname, recipient, message):
+    def sendMessage(username, password, fullname, recipient, message):
         """ Sends a message to recipient
         
             username:   string
@@ -73,7 +73,7 @@ class IChatService(Interface):
             message:    string
         """
 
-    def sendChatRoomMessage(self, username, password, fullname, room_name, message):
+    def sendChatRoomMessage(username, password, fullname, room_name, message):
         """ Sends a message to a chatroom 
         
             username:   string
@@ -83,7 +83,7 @@ class IChatService(Interface):
             message:    string
         """
 
-    def getMessages(self, username, password, partner, chatrooms, since, until):
+    def getMessages(username, password, partner, chatrooms, since, until):
         """ Returns messages from conversation partners or chatrooms,  
             optionally within a certain date range.
 
@@ -100,7 +100,7 @@ class IChatService(Interface):
             until: iso8601 date string or None
         """
 
-    def getNewMessages(self, username, password, since):
+    def getNewMessages(username, password, since):
         """ Get all messages since a certain date.
             
             username:   string
@@ -110,7 +110,7 @@ class IChatService(Interface):
             If since=None, get all messages.
         """
 
-    def getUnclearedMessages(self, username, password, partner, chatrooms, until, clear):
+    def getUnclearedMessages(username, password, partner, chatrooms, until, clear):
         """ Get all messages since the last clearance date. 
             Optionally mark them as cleared.
 
@@ -130,34 +130,35 @@ class IChatService(Interface):
 class IUser(Interface):
     """ A user using the babble.server """
 
-    def setStatus(self, status):
+    def setStatus(status):
         """ Sets the user's status """
 
-    def getStatus(self):
+    def getStatus():
         """ Returns the user's status """
 
 
 class IMessageBox(Interface):
     """ A container for messages """
 
-    def addMessage(self, message, author, fullname):
+    def addMessage(message, author, fullname):
         """ Add a message to the MessageBox """
 
 
 class IConversation(Interface):
     """ A conversation between two or more users """
 
-    def addMessage(self, text, author, fullname):
+    def addMessage(text, author, fullname):
         """ Add a message to the Conversation """
 
 
 class IChatRoom(Interface):
     """ """ 
 
-    def addMessage(self, text, author, fullname):
+    def addMessage(text, author, fullname):
         """ Add a message to the Chatroom """
 
 
 class IMessage(Interface):
     """ A message in a message box """
+
 
