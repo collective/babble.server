@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.0b5 (unreleased)
+1.0b5 (2012-03-23)
 ------------------
 
 - Various changes to minize write conflicts. [jcbrand]
