@@ -1,10 +1,10 @@
 Changelog
 =========
 
-1.0b6 (unreleased)
+1.0 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fail gracefully when deleted chatroom is not found. [jcbrand] 
 
 
 1.0b5 (2012-03-23)
