@@ -187,7 +187,10 @@ class ChatService(Folder):
             return json.dumps({'status': config.AUTH_FAIL})
 
         parent = self._getChatRoomsFolder()
-        parent.manage_delObjects([hashed(id)])
+        hid = hashed(id)
+        if hid not in parent.keys():
+            return json.dumps({'status': config.NOT_FOUND})
+        parent.manage_delObjects([hid])
         return json.dumps({'status': config.SUCCESS})
 
 

@@ -3,9 +3,7 @@ import simplejson as json
 from pytz import utc
 
 from Testing import ZopeTestCase as ztc
-from ZPublisher import NotFound
 from zExceptions import Unauthorized
-from persistent.dict import PersistentDict
 
 from zope.interface.verify import verifyObject
 
@@ -618,6 +616,9 @@ class TestChatService(ztc.ZopeTestCase):
 
         resp = json.loads(s.removeChatRoom('user1', 'secret', chatroom1_path))
         self.assertEqual(resp['status'], config.SUCCESS)
+
+        resp = json.loads(s.removeChatRoom('user1', 'secret', chatroom1_path))
+        self.assertEqual(resp['status'], config.NOT_FOUND)
 
         folder = s._getChatRoomsFolder()
         self.assertEqual(len(folder.values()), 0)
