@@ -1,9 +1,7 @@
 recursive-include main_directory *
 include *
 global-exclude *.pyc
+global-exclude *~
 recursive-include babble/server *.zcml
 recursive-include babble/server *.txt
 recursive-include babble/server *.png
-graft docs
-prune docs/.build
-graft babble/server/browser
