@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.1 (unreleased)
+1.1 (2012-04-11)
 ----------------
 
 - Update MANIFEST.in to make sure all files are included. [jcbrand]
